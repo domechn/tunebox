@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MusicNote } from '@phosphor-icons/react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface TrackInfo {
   title: string
@@ -38,18 +39,27 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
   return (
     <div className="w-full min-h-[200px] flex flex-col">
       <div className="flex gap-4 mb-4">
-        {hasAlbumArt && (
-          <div className="flex-shrink-0">
-            <div className="w-32 h-32 rounded-lg overflow-hidden border-4 border-primary/40 shadow-xl bg-card/80">
-              <img
-                src={trackInfo.thumbnail}
-                alt={`${trackInfo.title} album art`}
-                className="w-full h-full object-cover"
-                onError={() => setImageError(true)}
-              />
-            </div>
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          {hasAlbumArt && (
+            <motion.div
+              key={trackInfo.thumbnail}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+              className="flex-shrink-0"
+            >
+              <div className="w-32 h-32 rounded-lg overflow-hidden border-4 border-primary/40 shadow-xl bg-card/80">
+                <img
+                  src={trackInfo.thumbnail}
+                  alt={`${trackInfo.title} album art`}
+                  className="w-full h-full object-cover"
+                  onError={() => setImageError(true)}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex-1 space-y-2 min-w-0">
           <div className="text-xs font-mono text-muted-foreground tracking-widest">
