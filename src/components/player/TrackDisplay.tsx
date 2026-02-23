@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { MusicNote } from '@phosphor-icons/react'
 
 interface TrackInfo {
   title: string
   artist: string
   album?: string
+  thumbnail?: string
 }
 
 interface TrackDisplayProps {
@@ -17,6 +19,7 @@ interface TrackDisplayProps {
 
 export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChangingTrack }: TrackDisplayProps) {
   const [currentLyricIndex, setCurrentLyricIndex] = useState(0)
+  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     if (lyrics.length > 0 && duration > 0) {
@@ -26,18 +29,39 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
     }
   }, [currentTime, duration, lyrics.length])
 
+  useEffect(() => {
+    setImageError(false)
+  }, [trackInfo.thumbnail])
+
+  const hasAlbumArt = trackInfo.thumbnail && !imageError
+
   return (
-    <div className="space-y-4 min-h-[200px] flex flex-col">
-      <div className="text-center space-y-1">
-        <div className="text-xs font-mono text-muted-foreground tracking-widest">
-          NOW PLAYING
-        </div>
-        <div className={`amber-glow rounded-lg px-6 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`} style={{ minHeight: '68px', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '12px', paddingBottom: '12px' }}>
-          <div className="text-lg font-bold text-accent-foreground tracking-wide truncate">
-            {isChangingTrack ? 'TUNING...' : trackInfo.title.toUpperCase()}
+    <div className="w-full min-h-[200px] flex flex-col">
+      <div className="flex gap-4 mb-4">
+        {hasAlbumArt && (
+          <div className="flex-shrink-0">
+            <div className="w-32 h-32 rounded-lg overflow-hidden border-4 border-primary/40 shadow-xl bg-card/80">
+              <img
+                src={trackInfo.thumbnail}
+                alt={`${trackInfo.title} album art`}
+                className="w-full h-full object-cover"
+                onError={() => setImageError(true)}
+              />
+            </div>
           </div>
-          <div className="text-sm text-accent-foreground/80 tracking-wide truncate" style={{ minHeight: '20px' }}>
-            {!isChangingTrack && trackInfo.artist ? trackInfo.artist.toUpperCase() : '\u00A0'}
+        )}
+
+        <div className="flex-1 space-y-2 min-w-0">
+          <div className="text-xs font-mono text-muted-foreground tracking-widest">
+            NOW PLAYING
+          </div>
+          <div className={`amber-glow rounded-lg px-4 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`} style={{ minHeight: '68px', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '12px', paddingBottom: '12px' }}>
+            <div className="text-base font-bold text-accent-foreground tracking-wide truncate">
+              {isChangingTrack ? 'TUNING...' : trackInfo.title.toUpperCase()}
+            </div>
+            <div className="text-sm text-accent-foreground/80 tracking-wide truncate" style={{ minHeight: '20px' }}>
+              {!isChangingTrack && trackInfo.artist ? trackInfo.artist.toUpperCase() : '\u00A0'}
+            </div>
           </div>
         </div>
       </div>
