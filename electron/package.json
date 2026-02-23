@@ -2,10 +2,15 @@
   "name": "vintage-radio-electron",
   "version": "1.0.0",
   "description": "Vintage Radio - YouTube Music Desktop App",
+  "author": "domchan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/domchan/youtube-music-deskto.git"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package:mac": "electron-builder --mac --publish never",
+    "package:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never",
     "package:win": "electron-builder --win --publish never",
     "package:linux": "electron-builder --linux --publish never",
     "package:all": "electron-builder -mwl --publish never"
@@ -33,6 +38,7 @@
     ],
     "mac": {
       "category": "public.app-category.music",
+      "icon": "../build/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -46,6 +52,7 @@
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "win": {
+      "icon": "../build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -59,6 +66,7 @@
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "linux": {
+      "icon": "../build/icon.png",
       "target": [
         {
           "target": "AppImage",
@@ -82,7 +90,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Vintage Radio"
-    }
+    },
+    "publish": []
   },
   "dependencies": {},
   "devDependencies": {

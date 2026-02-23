@@ -19,7 +19,13 @@ function setupYouTubeMusicControls() {
     const titleEl = await findElement('.title.style-scope.ytmusic-player-bar')
     const artistEl = await findElement('.byline.style-scope.ytmusic-player-bar')
     const albumEl = await findElement('.subtitle.style-scope.ytmusic-player-bar')
-    const thumbEl = await findElement('#song-image img')
+    let thumbEl = await findElement('ytmusic-player-bar img.image, .thumbnail img, #song-image img, ytmusic-player-bar img')
+    if (!thumbEl || !thumbEl.src) {
+      const wrapper = document.querySelector('ytmusic-player-bar .image') || document.querySelector('.thumbnail.ytmusic-player-bar')
+      if (wrapper) {
+        thumbEl = wrapper.querySelector('img') || wrapper
+      }
+    }
 
     return {
       title: titleEl?.textContent?.trim() || 'Unknown',
@@ -96,6 +102,15 @@ function setupYouTubeMusicControls() {
 
       case 'like':
         await clickButton('ytmusic-like-button-renderer[like-status="LIKE"] button')
+        break
+
+      case 'seek':
+        if (event.data.data && typeof event.data.data.time === 'number') {
+          var video = document.querySelector('video');
+          if (video) {
+            video.currentTime = event.data.data.time;
+          }
+        }
         break
 
       case 'setVolume':

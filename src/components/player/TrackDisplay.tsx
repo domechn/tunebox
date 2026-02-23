@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { useState, useEffect, useMemo } from 'react'
 import { MusicNote } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MarqueeText } from '@/components/ui/marquee-text'
 
 interface TrackInfo {
   title: string
@@ -13,22 +13,24 @@ interface TrackInfo {
 interface TrackDisplayProps {
   trackInfo: TrackInfo
   lyrics: string[]
+  currentLyricText?: string
   currentTime: number
   duration: number
   isChangingTrack: boolean
 }
 
-export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChangingTrack }: TrackDisplayProps) {
-  const [currentLyricIndex, setCurrentLyricIndex] = useState(0)
+export function TrackDisplay({ trackInfo, lyrics, currentLyricText: currentLyricProp, currentTime, duration, isChangingTrack }: TrackDisplayProps) {
   const [imageError, setImageError] = useState(false)
 
-  useEffect(() => {
+  const currentLyricText = useMemo(() => {
+    if (currentLyricProp) return currentLyricProp
     if (lyrics.length > 0 && duration > 0) {
       const progress = currentTime / duration
-      const newIndex = Math.floor(progress * lyrics.length)
-      setCurrentLyricIndex(Math.min(newIndex, lyrics.length - 1))
+      const index = Math.min(Math.floor(progress * lyrics.length), lyrics.length - 1)
+      return lyrics[index] || ''
     }
-  }, [currentTime, duration, lyrics.length])
+    return ''
+  }, [currentLyricProp, lyrics, currentTime, duration])
 
   useEffect(() => {
     setImageError(false)
@@ -37,8 +39,8 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
   const hasAlbumArt = trackInfo.thumbnail && !imageError
 
   return (
-    <div className="w-full min-h-[200px] flex flex-col">
-      <div className="flex gap-4 mb-4">
+    <div className="w-full min-h-[132px] flex flex-col">
+      <div className="flex gap-2 mb-2">
         <AnimatePresence mode="wait">
           {hasAlbumArt && (
             <motion.div
@@ -49,7 +51,7 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
               transition={{ duration: 0.5, ease: "easeInOut" }}
               className="flex-shrink-0"
             >
-              <div className="w-32 h-32 rounded-lg overflow-hidden border-4 border-primary/40 shadow-xl bg-card/80">
+              <div className="w-16 h-16 rounded-md overflow-hidden border-2 border-primary/40 shadow-xl bg-card/80">
                 <img
                   src={trackInfo.thumbnail}
                   alt={`${trackInfo.title} album art`}
@@ -61,43 +63,34 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
           )}
         </AnimatePresence>
 
-        <div className="flex-1 space-y-2 min-w-0">
-          <div className="text-xs font-mono text-muted-foreground tracking-widest">
+        <div className="flex-1 space-y-1 min-w-0">
+          <div className="text-[10px] font-mono text-muted-foreground tracking-widest">
             NOW PLAYING
           </div>
-          <div className={`amber-glow rounded-lg px-4 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`} style={{ minHeight: '68px', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '12px', paddingBottom: '12px' }}>
-            <div className="text-base font-bold text-accent-foreground tracking-wide truncate">
-              {isChangingTrack ? 'TUNING...' : trackInfo.title.toUpperCase()}
-            </div>
-            <div className="text-sm text-accent-foreground/80 tracking-wide truncate" style={{ minHeight: '20px' }}>
-              {!isChangingTrack && trackInfo.artist ? trackInfo.artist.toUpperCase() : '\u00A0'}
+          <div className={`amber-glow rounded-md px-3 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`} style={{ minHeight: '46px', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '6px', paddingBottom: '6px' }}>
+            <MarqueeText 
+              text={isChangingTrack ? 'TUNING...' : trackInfo.title.toUpperCase()} 
+              className="text-xs font-bold text-accent-foreground tracking-wide" 
+            />
+            <div style={{ minHeight: '14px' }}>
+              <MarqueeText 
+                text={!isChangingTrack && trackInfo.artist ? trackInfo.artist.toUpperCase() : '\u00A0'} 
+                className="text-[11px] text-accent-foreground/80 tracking-wide" 
+              />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30 flex-1" style={{ minHeight: '112px' }}>
-        {lyrics.length > 0 && !isChangingTrack ? (
-          <ScrollArea className="h-24">
-            <div className="space-y-2">
-              {lyrics.map((line, index) => (
-                <div
-                  key={index}
-                  className={`text-sm font-mono transition-all duration-300 ${
-                    index === currentLyricIndex
-                      ? 'text-accent font-bold scale-105'
-                      : index < currentLyricIndex
-                      ? 'text-muted-foreground/50'
-                      : 'text-foreground/70'
-                  }`}
-                >
-                  {line}
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
+      <div className="bg-card/50 rounded-md p-2 border border-muted/30 flex-1 flex items-center justify-center" style={{ minHeight: '56px' }}>
+        {currentLyricText && !isChangingTrack ? (
+          <MarqueeText
+            text={currentLyricText}
+            className="text-[11px] font-mono text-accent font-bold"
+            speed={0.15}
+          />
         ) : (
-          <div className="h-24 flex items-center justify-center text-xs font-mono text-muted-foreground">
+          <div className="text-[10px] font-mono text-muted-foreground">
             {isChangingTrack ? 'LOADING...' : 'NO LYRICS AVAILABLE'}
           </div>
         )}

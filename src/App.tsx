@@ -1,24 +1,21 @@
 import { useRef, useEffect, useState } from 'react'
 import { VintageRadio } from '@/components/player/VintageRadio'
-import { toast, Toaster } from 'sonner'
-import { Button } from '@/components/ui/button'
+import type { YouTubeEmbedElement } from '@/hooks/use-youtube-music'
+import { Power } from '@phosphor-icons/react'
 
 function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showLogin, setShowLogin] = useState(true)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false)
+  const [authCapturedAt, setAuthCapturedAt] = useState<string | null>(null)
+  const playerRef = useRef<YouTubeEmbedElement | null>(null)
+  const isElectron = typeof window !== 'undefined' && typeof (window as Window & { electron?: unknown }).electron !== 'undefined'
 
   const YOUTUBE_MUSIC_URL = 'https://music.youtube.com'
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      toast.success('Radio signal restored')
-    }
-    const handleOffline = () => {
-      setIsOnline(false)
-      toast.error('Radio signal lost')
-    }
+    const handleOnline  = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -29,69 +26,173 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!isElectron || !window.electron) {
+      return
+    }
+
+    let mounted = true
+    const checkAuth = async () => {
+      const state = await window.electron?.getYouTubeMusicAuthState()
+      if (!mounted || !state) return
+      if (state.ready) {
+        setAuthCapturedAt(state.capturedAt ?? null)
+        setShowLogin(false)
+      }
+    }
+
+    checkAuth()
+    const unsubscribe = window.electron.onYouTubeMusicAuthUpdated((payload) => {
+      if (!mounted) return
+      if (payload?.ready) {
+        setAuthCapturedAt(payload.capturedAt ?? null)
+        setShowLogin(false)
+        setIsCheckingAuth(false)
+      }
+    })
+
+    return () => {
+      mounted = false
+      unsubscribe?.()
+    }
+  }, [isElectron])
+
   const handleExit = () => {
-    window.close()
+    if (isElectron && window.electron?.quit) {
+      window.electron.quit()
+    } else {
+      window.close()
+    }
   }
 
-  const handleContinue = () => {
-    setShowLogin(false)
+  const handleLogout = async () => {
+    if (isElectron && window.electron?.logout) {
+      await window.electron.logout()
+      setShowLogin(true)
+      setAuthCapturedAt(null)
+    }
+  }
+
+  const handleLogin = async () => {
+    if (!isElectron || !window.electron) return
+
+    setIsCheckingAuth(true)
+    await window.electron.openYouTubeMusicLogin()
+
+    const startedAt = Date.now()
+    const poll = setInterval(async () => {
+      const state = await window.electron?.getYouTubeMusicAuthState()
+      if (state?.ready) {
+        clearInterval(poll)
+        setAuthCapturedAt(state.capturedAt ?? null)
+        setShowLogin(false)
+        setIsCheckingAuth(false)
+      }
+
+      if (Date.now() - startedAt > 10 * 60 * 1000) {
+        clearInterval(poll)
+        setIsCheckingAuth(false)
+      }
+    }, 2000)
   }
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      <Toaster position="top-center" />
-      
+    <div className="relative w-full h-screen overflow-hidden rounded-[32px] bg-transparent">
       {showLogin ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-background via-background to-muted">
-          <div className="wood-grain rounded-3xl p-12 shadow-2xl border-8 border-card max-w-md w-full mx-4" style={{ animation: 'scale-in 0.6s ease-out' }}>
-            <div className="space-y-6 text-center">
-              <div className="text-6xl mb-4" style={{ animation: 'rotate-in 0.8s ease-out' }}>📻</div>
-              <h1 className="text-2xl font-bold text-foreground" style={{ animation: 'slide-down 0.5s ease-out 0.2s backwards' }}>VINTAGE RADIO</h1>
-              <p className="text-sm text-muted-foreground font-mono" style={{ animation: 'fade-in 0.5s ease-out 0.3s backwards' }}>
-                Sign in to YouTube Music below, then return here to start streaming
+        <div className="player-shell">
+          {/* Corner screws */}
+          <div className="screw screw-tl" />
+          <div className="screw screw-tr" />
+          <div className="screw screw-bl" />
+          <div className="screw screw-br" />
+
+          {/* Top Bar */}
+          <div className="top-bar">
+            <div className="app-brand" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
+              <span className="app-brand-text">YT Music</span>
+            </div>
+            <button className="physical-btn physical-btn-danger" onClick={handleExit} title="Quit">
+              <Power size={14} weight="bold" />
+            </button>
+          </div>
+
+          {/* Screen Area */}
+          <div className="screen-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <div className="login-card">
+              <div className="login-icon">🎵</div>
+              <h1 className="login-title">MUSIC PLAYER</h1>
+              <p className="login-desc">
+                Sign in to YouTube Music to start streaming.
               </p>
-              <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30" style={{ animation: 'slide-up 0.5s ease-out 0.4s backwards' }}>
-                <iframe
-                  ref={iframeRef}
-                  src={YOUTUBE_MUSIC_URL}
-                  className="w-full h-96 rounded"
-                  title="YouTube Music Login"
-                  allow="autoplay; encrypted-media"
-                />
+              <div className="login-status">
+                {authCapturedAt
+                  ? `Authenticated · ${new Date(authCapturedAt).toLocaleTimeString()}`
+                  : 'Waiting for login...'}
               </div>
-              <Button
-                onClick={handleContinue}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-base font-bold transition-all hover:scale-105 active:scale-95"
-                style={{ animation: 'slide-up 0.5s ease-out 0.5s backwards' }}
+              <button
+                onClick={handleLogin}
+                disabled={isCheckingAuth}
+                className="login-btn"
               >
-                CONTINUE TO RADIO
-              </Button>
+                {isCheckingAuth ? 'WAITING FOR LOGIN...' : 'SIGN IN'}
+              </button>
             </div>
           </div>
         </div>
       ) : (
         <>
-          <iframe
-            ref={iframeRef}
-            src={YOUTUBE_MUSIC_URL}
-            className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
-            title="YouTube Music"
-            allow="autoplay; encrypted-media"
-          />
+          {isElectron ? (
+            <webview
+              ref={playerRef}
+              src={YOUTUBE_MUSIC_URL}
+              className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
+              partition="persist:youtube-music"
+              allowpopups="true"
+              webpreferences="contextIsolation=yes"
+            />
+          ) : (
+            <iframe
+              ref={playerRef}
+              src={YOUTUBE_MUSIC_URL}
+              className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
+              title="YouTube Music"
+              allow="autoplay; encrypted-media"
+            />
+          )}
 
           {!isOnline && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-sm z-50" style={{ animation: 'fade-in 0.3s ease-out' }}>
-              <div className="text-center space-y-4 p-8">
-                <div className="text-6xl" style={{ animation: 'float 3s ease-in-out infinite' }}>📻</div>
-                <h2 className="text-2xl font-bold text-foreground" style={{ animation: 'slide-down 0.5s ease-out 0.1s backwards' }}>NO SIGNAL</h2>
-                <p className="text-muted-foreground font-mono text-sm" style={{ animation: 'fade-in 0.5s ease-out 0.2s backwards' }}>Check antenna connection</p>
+            <div className="player-shell" style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
+              {/* Corner screws */}
+              <div className="screw screw-tl" />
+              <div className="screw screw-tr" />
+              <div className="screw screw-bl" />
+              <div className="screw screw-br" />
+
+              {/* Top Bar */}
+              <div className="top-bar">
+                <div className="app-brand" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
+                  <span className="app-brand-text">YT Music</span>
+                </div>
+                <button className="physical-btn physical-btn-danger" onClick={handleExit} title="Quit">
+                  <Power size={14} weight="bold" />
+                </button>
+              </div>
+
+              {/* Screen Area */}
+              <div className="screen-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                <div className="login-card">
+                  <div className="login-icon">📡</div>
+                  <h2 className="login-title">NO CONNECTION</h2>
+                  <p className="login-desc">Check your internet connection</p>
+                </div>
               </div>
             </div>
           )}
 
-          <VintageRadio iframeRef={iframeRef} onExit={handleExit} />
+          <VintageRadio playerRef={playerRef} onExit={handleExit} onLogout={handleLogout} />
         </>
       )}
+      <div className="player-shell-shadow" />
     </div>
   )
 }

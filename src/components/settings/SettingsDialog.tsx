@@ -1,4 +1,4 @@
-import { useKV } from '@github/spark/hooks'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -10,9 +10,9 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
-  const [autoHideControls, setAutoHideControls] = useKV('auto-hide-controls', 'true')
-  const [startMiniMode, setStartMiniMode] = useKV('start-mini-mode', 'false')
-  const [enableNotifications, setEnableNotifications] = useKV('enable-notifications', 'true')
+  const [autoHideControls, setAutoHideControls] = useLocalStorage('auto-hide-controls', 'true')
+  const [startMiniMode, setStartMiniMode] = useLocalStorage('start-mini-mode', 'false')
+  const [enableNotifications, setEnableNotifications] = useLocalStorage('enable-notifications', 'true')
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

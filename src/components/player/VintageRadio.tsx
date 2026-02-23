@@ -1,233 +1,256 @@
 import { useState, useRef, useEffect, RefObject } from 'react'
-import { useKV } from '@github/spark/hooks'
-import { CaretLeft, CaretRight, Power, Play, Pause, ThumbsDown } from '@phosphor-icons/react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { toast } from 'sonner'
-import { TrackDisplay } from './TrackDisplay'
-import { useYouTubeMusic } from '@/hooks/use-youtube-music'
+import { useLocalStorage } from '@/hooks/use-local-storage'
+import { SkipBack, SkipForward, Play, Pause, ThumbsDown, Power, SignOut } from '@phosphor-icons/react'
+import { useYouTubeMusic, type YouTubeEmbedElement } from '@/hooks/use-youtube-music'
+import { MarqueeText } from '@/components/ui/marquee-text'
 
 interface VintageRadioProps {
-  iframeRef: RefObject<HTMLIFrameElement | null>
+  playerRef: RefObject<YouTubeEmbedElement | null>
   onExit: () => void
+  onLogout: () => void
 }
 
-export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
-  const [volume, setVolume] = useKV<number[]>('radio-volume', [70])
+function formatTime(seconds: number): string {
+  if (!seconds || !isFinite(seconds) || seconds < 0) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps) {
+  const [volume, setVolume] = useLocalStorage<number>('radio-vol', 70)
   const [isChangingTrack, setIsChangingTrack] = useState(false)
-  const [knobRotation, setKnobRotation] = useState(0)
+  const [knobRotation, setKnobRotation] = useState(() => (volume / 100) * 270 - 135)
+  const [isDragging, setIsDragging] = useState(false)
   const isDraggingRef = useRef(false)
   const lastAngleRef = useRef(0)
+  const knobRotationRef = useRef((volume / 100) * 270 - 135)
+  const progressTrackRef = useRef<HTMLDivElement>(null)
 
-  const ytMusic = useYouTubeMusic(iframeRef)
+  const ytMusic = useYouTubeMusic(playerRef)
+  const { setVolume: ytSetVolume, trackInfo, playbackState, currentLyricText } = ytMusic
+  const [imageError, setImageError] = useState(false)
 
+  useEffect(() => { setImageError(false) }, [trackInfo.thumbnail])
+
+  // Sync volume to YouTube Music
   useEffect(() => {
-    if (volume && volume[0] !== undefined) {
-      const volumeValue = volume[0]
-      setKnobRotation((volumeValue / 100) * 270 - 135)
-      ytMusic.setVolume(volumeValue)
-    }
-  }, [volume, ytMusic])
+    ytSetVolume(volume)
+  }, [volume, ytSetVolume])
 
   const handlePrevious = () => {
     setIsChangingTrack(true)
-    toast('Tuning to previous station...', { icon: '📻' })
     ytMusic.previous()
-    setTimeout(() => setIsChangingTrack(false), 1000)
+    setTimeout(() => setIsChangingTrack(false), 1200)
   }
 
   const handleNext = () => {
     setIsChangingTrack(true)
-    toast('Changing station...', { icon: '📻' })
     ytMusic.next()
-    setTimeout(() => setIsChangingTrack(false), 1000)
+    setTimeout(() => setIsChangingTrack(false), 1200)
   }
 
   const handleDislike = () => {
     setIsChangingTrack(true)
-    toast.error('Disliked track - switching...', { icon: '👎' })
     ytMusic.dislike()
     setTimeout(() => {
       ytMusic.next()
-      setTimeout(() => setIsChangingTrack(false), 1000)
+      setTimeout(() => setIsChangingTrack(false), 1200)
     }, 150)
   }
 
-  const handlePowerOff = () => {
-    toast.error('Powering off radio...', { icon: '⚡' })
-    setTimeout(() => onExit(), 800)
+  // Progress bar seek via click/drag
+  const seekFromEvent = (clientX: number) => {
+    const track = progressTrackRef.current
+    if (!track || playbackState.duration <= 0) return
+    const rect = track.getBoundingClientRect()
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    const seekTime = ratio * playbackState.duration
+    ytMusic.seek(seekTime)
   }
 
-  const handleKnobMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleProgressMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
-    isDraggingRef.current = true
+    seekFromEvent(e.clientX)
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      seekFromEvent(ev.clientX)
+    }
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
+
+  const handleRingMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Ignore clicks on the inner button area
+    const target = e.target as HTMLElement
+    if (target.closest('.wheel-inner-buttons')) return
+
+    e.preventDefault()
     const rect = e.currentTarget.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
     lastAngleRef.current = Math.atan2(e.clientY - centerY, e.clientX - centerX)
-  }
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return
-      
-      const knobElement = document.getElementById('volume-knob')
-      if (!knobElement) return
-      
-      const rect = knobElement.getBoundingClientRect()
-      const centerX = rect.left + rect.width / 2
-      const centerY = rect.top + rect.height / 2
-      
-      const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX)
-      const delta = angle - lastAngleRef.current
+    const handleMouseMove = (ev: MouseEvent) => {
+      const ringElement = document.getElementById('volume-ring')
+      if (!ringElement) return
+      const r = ringElement.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const angle = Math.atan2(ev.clientY - cy, ev.clientX - cx)
+      const rawDelta = angle - lastAngleRef.current
+      const delta = ((rawDelta + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI
       lastAngleRef.current = angle
-      
-      const newRotation = Math.max(-135, Math.min(135, knobRotation + (delta * 180 / Math.PI)))
+      const newRotation = Math.max(-135, Math.min(135, knobRotationRef.current + (delta * 180 / Math.PI)))
       const newVolume = Math.round(((newRotation + 135) / 270) * 100)
-      
+      knobRotationRef.current = newRotation
       setKnobRotation(newRotation)
-      setVolume([newVolume])
+      setVolume(newVolume)
     }
 
     const handleMouseUp = () => {
       isDraggingRef.current = false
+      setIsDragging(false)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
     }
 
-    if (isDraggingRef.current) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-      
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
-      }
-    }
-  }, [knobRotation, setVolume])
+    isDraggingRef.current = true
+    setIsDragging(true)
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
+
+  const hasAlbumArt = !!trackInfo.thumbnail && !imageError
+  const progress = playbackState.duration > 0
+    ? (playbackState.currentTime / playbackState.duration) * 100
+    : 0
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen w-full bg-gradient-to-br from-background via-background to-muted p-8">
-      <div className="relative w-full max-w-2xl" style={{ animation: 'scale-in 0.6s ease-out' }}>
-        <div className="wood-grain rounded-3xl p-12 shadow-2xl border-8 border-card">
-          <div className="space-y-8">
-            <div className="flex items-center justify-between" style={{ animation: 'slide-down 0.4s ease-out 0.1s backwards' }}>
-              <Badge variant="secondary" className="text-xs font-mono">
-                FM • 107.9 MHz
-              </Badge>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handlePowerOff}
-                className="rounded-full h-8 w-8 p-0 bg-destructive/80 hover:bg-destructive transition-all hover:scale-110 active:scale-90"
-              >
-                <Power size={16} weight="bold" />
-              </Button>
-            </div>
+    <div
+      className="player-shell"
+    >
+      {/* Corner screws */}
+      <div className="screw screw-tl" />
+      <div className="screw screw-tr" />
+      <div className="screw screw-bl" />
+      <div className="screw screw-br" />
 
-            <div className="speaker-grill rounded-2xl p-6 flex items-center justify-center border-4 border-muted/50 transition-all hover:border-primary/30" style={{ animation: 'scale-in 0.5s ease-out 0.2s backwards' }}>
-              <TrackDisplay 
-                trackInfo={ytMusic.trackInfo}
-                lyrics={ytMusic.lyrics}
-                currentTime={ytMusic.playbackState.currentTime}
-                duration={ytMusic.playbackState.duration}
-                isChangingTrack={isChangingTrack}
+      {/* Top Bar with physical buttons and drag handle */}
+      <div className="top-bar">
+        <button className="physical-btn" onClick={onLogout} title="Sign out">
+          <SignOut size={14} weight="bold" />
+        </button>
+        <div className="app-brand">
+          <span className="app-brand-text">YT Music</span>
+        </div>
+        <button className="physical-btn physical-btn-danger" onClick={onExit} title="Quit">
+          <Power size={14} weight="bold" />
+        </button>
+      </div>
+
+      {/* Screen Area */}
+      <div className="screen-container">
+        {/* Album Art */}
+        <div className="album-art-wrap">
+          {hasAlbumArt ? (
+            <img
+              key={trackInfo.thumbnail}
+              src={trackInfo.thumbnail}
+              alt="album art"
+              className={`album-art-img ${isChangingTrack ? 'changing' : ''}`}
+              draggable={false}
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="album-art-empty">
+              <span>♪</span>
+            </div>
+          )}
+        </div>
+
+        {/* Track Info */}
+        <div className={`track-info ${isChangingTrack ? 'changing' : ''}`}>
+          <MarqueeText 
+            text={isChangingTrack ? 'Loading...' : (trackInfo.title || 'YouTube Music')} 
+            className="track-title" 
+          />
+          <MarqueeText 
+            text={!isChangingTrack && trackInfo.artist ? trackInfo.artist : '\u00A0'} 
+            className="track-artist" 
+          />
+        </div>
+
+        {/* Progress Bar - clickable/draggable */}
+        <div className="progress-section">
+          <div
+            className="progress-track"
+            ref={progressTrackRef}
+            onMouseDown={handleProgressMouseDown}
+          >
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+            <div className="progress-thumb" style={{ left: `${progress}%` }} />
+          </div>
+          <div className="progress-times">
+            <span>{formatTime(playbackState.currentTime)}</span>
+            <span>{formatTime(playbackState.duration)}</span>
+          </div>
+        </div>
+
+        {/* Current lyric line */}
+        <div className="lyrics-box">
+          {currentLyricText && !isChangingTrack ? (
+            <div className="lyrics-single">
+              <MarqueeText
+                text={currentLyricText}
+                className="lyric-active"
+                speed={0.15}
               />
             </div>
-
-            <div className="grid grid-cols-5 gap-4 items-center" style={{ animation: 'slide-up 0.5s ease-out 0.3s backwards' }}>
-              <div className="flex flex-col items-center gap-3">
-                <Button
-                  size="lg"
-                  onClick={handlePrevious}
-                  disabled={isChangingTrack}
-                  className="h-14 w-14 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
-                  style={{ animation: 'none' }}
-                >
-                  <CaretLeft size={24} weight="bold" className="text-primary" />
-                </Button>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  PREV
-                </Badge>
-              </div>
-
-              <div className="flex flex-col items-center gap-3">
-                <Button
-                  size="lg"
-                  onClick={ytMusic.togglePlayPause}
-                  className="h-14 w-14 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
-                  style={{ animation: 'none' }}
-                >
-                  {ytMusic.playbackState.isPlaying ? (
-                    <Pause size={24} weight="bold" className="text-primary" />
-                  ) : (
-                    <Play size={24} weight="bold" className="text-primary" />
-                  )}
-                </Button>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  {ytMusic.playbackState.isPlaying ? 'PAUSE' : 'PLAY'}
-                </Badge>
-              </div>
-
-              <div className="flex flex-col items-center gap-3">
-                <Button
-                  size="lg"
-                  onClick={handleNext}
-                  disabled={isChangingTrack}
-                  className="h-14 w-14 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
-                  style={{ animation: 'none' }}
-                >
-                  <CaretRight size={24} weight="bold" className="text-primary" />
-                </Button>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  NEXT
-                </Badge>
-              </div>
-
-              <div className="flex flex-col items-center gap-3">
-                <Button
-                  size="lg"
-                  onClick={handleDislike}
-                  disabled={isChangingTrack}
-                  className="h-14 w-14 rounded-full bg-destructive/20 hover:bg-destructive/30 active:scale-95 transition-all shadow-lg border-4 border-destructive/40"
-                  style={{ animation: 'none' }}
-                >
-                  <ThumbsDown size={24} weight="bold" className="text-destructive" />
-                </Button>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  SKIP
-                </Badge>
-              </div>
-
-              <div className="flex flex-col items-center gap-3">
-                <div className="relative">
-                  <div
-                    id="volume-knob"
-                    className="brass-knob h-20 w-20 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center transition-all hover:shadow-2xl hover:scale-105 active:scale-95"
-                    onMouseDown={handleKnobMouseDown}
-                    style={{
-                      transform: `rotate(${knobRotation}deg) ${isDraggingRef.current ? '' : 'scale(1)'}`,
-                      transition: isDraggingRef.current ? 'none' : 'transform 0.1s ease-out, box-shadow 0.2s ease-out'
-                    }}
-                  >
-                    <div className="absolute top-1.5 h-1 w-5 bg-accent-foreground rounded-full"></div>
-                    <div className="absolute inset-5 rounded-full bg-muted/50 border-2 border-primary/40 flex items-center justify-center">
-                      <div className="text-xs font-bold text-primary-foreground">
-                        {volume ? volume[0] : 70}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  VOL
-                </Badge>
-              </div>
+          ) : (
+            <div className="lyrics-empty">
+              {isChangingTrack ? '...' : '♪  No lyrics available'}
             </div>
+          )}
+        </div>
+      </div>
 
-            <div className="text-center">
-              <div className="text-xs font-mono text-muted-foreground tracking-widest opacity-60">
-                VINTAGE RADIO • STEREO SOUND
-              </div>
-            </div>
-          </div>
+      {/* Wheel: Outer Volume Ring + Inner Buttons */}
+      <div className="wheel-container">
+        <div
+          id="volume-ring"
+          className={`wheel-ring ${isDragging ? 'wheel-ring-grabbing' : ''}`}
+          onMouseDown={handleRingMouseDown}
+        >
+          {/* Tick marks on outer ring */}
+          <div className="ring-indicator" style={{
+            transform: `rotate(${knobRotation}deg)`,
+            transition: isDragging ? 'none' : 'transform 0.15s ease-out'
+          }} />
+          <div className="ring-ticks" />
+        </div>
+
+        {/* Inner circle with buttons */}
+        <div className="wheel-inner-buttons">
+          <button className="wheel-btn wheel-top" onClick={handleDislike} disabled={isChangingTrack}>
+            <ThumbsDown size={16} weight="fill" />
+          </button>
+          <button className="wheel-btn wheel-left" onClick={handlePrevious} disabled={isChangingTrack}>
+            <SkipBack size={18} weight="fill" />
+          </button>
+          <button className="wheel-btn wheel-right" onClick={handleNext} disabled={isChangingTrack}>
+            <SkipForward size={18} weight="fill" />
+          </button>
+          <button className="wheel-btn wheel-bottom" onClick={ytMusic.togglePlayPause}>
+            {playbackState.isPlaying
+              ? <Pause size={18} weight="fill" />
+              : <Play size={18} weight="fill" />
+            }
+          </button>
         </div>
       </div>
     </div>
