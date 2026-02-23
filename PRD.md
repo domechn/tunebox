@@ -20,11 +20,11 @@ This is a simplified radio-style player that integrates with YouTube Music. User
 - **Success criteria**: User can log into YouTube Music and access their account
 
 ### 2. Radio Station Display with Track Info and Lyrics
-- **Functionality**: Shows current song title, artist, and live synchronized lyrics in the vintage radio display
-- **Purpose**: Provides real-time feedback on what's playing while maintaining the nostalgic aesthetic
+- **Functionality**: Shows current song title, artist, and live synchronized lyrics in the vintage radio display with fixed height layout
+- **Purpose**: Provides real-time feedback on what's playing while maintaining the nostalgic aesthetic, prevents page jumping during track changes
 - **Trigger**: Automatically updates when track changes in YouTube Music
 - **Progression**: Track changes → Extract metadata from YouTube Music → Display song title and artist → Fetch and show synchronized lyrics
-- **Success criteria**: Song information displays accurately with lyrics synchronized to playback progress
+- **Success criteria**: Song information displays accurately with lyrics synchronized to playback progress, layout remains stable during transitions
 
 ### 3. Play/Pause Control
 - **Functionality**: Central button to toggle playback state
@@ -33,12 +33,15 @@ This is a simplified radio-style player that integrates with YouTube Music. User
 - **Progression**: User clicks button → Toggle YouTube Music playback → Update button icon
 - **Success criteria**: Playback starts/stops immediately, button reflects current state
 
-### 4. Previous/Next Track Buttons
-- **Functionality**: Large, tactile-looking buttons to skip to previous or next track
-- **Purpose**: Mimics tuning to different stations on a vintage radio
-- **Trigger**: User clicks previous or next button
-- **Progression**: User clicks next → Current track is auto-disliked → Skip to next YouTube Music recommendation
-- **Success criteria**: Tracks change smoothly, current track gets disliked when skipping forward
+### 4. Track Navigation Controls
+- **Functionality**: Separate buttons for Previous, Next, and Dislike/Skip
+- **Purpose**: Clear, distinct controls for track navigation - Previous goes back, Next advances, Dislike rates negatively and skips
+- **Trigger**: User clicks previous, next, or dislike button
+- **Progression**: 
+  - Previous: User clicks previous → Skip to previous YouTube Music track
+  - Next: User clicks next → Skip to next YouTube Music recommendation  
+  - Dislike: User clicks dislike → Current track is disliked → Skip to next track
+- **Success criteria**: Tracks change smoothly, dislike button provides clear feedback when rating negatively
 
 ### 5. Volume Knob Control
 - **Functionality**: Rotary knob-style volume slider with vintage aesthetic
@@ -104,11 +107,11 @@ Animations should mimic the mechanical and analog nature of vintage equipment. B
 ## Component Selection
 
 - **Components**:
-  - Button: Large mechanical-style buttons for Previous/Next/Play/Pause with pressed depth effect
+  - Button: Large mechanical-style buttons for Previous/Play/Next/Dislike with pressed depth effect
   - Circular rotary knob for volume with rotation animation
   - Card: Main radio body container with wood grain texture background
-  - Badge: Small labels for button functions ("PREV", "NEXT", "PLAY", "PAUSE", "VOL")
-  - ScrollArea: For lyrics display with smooth scrolling
+  - Badge: Small labels for button functions ("PREV", "PLAY"/"PAUSE", "NEXT", "SKIP", "VOL")
+  - ScrollArea: For lyrics display with smooth scrolling and fixed height
   - Toast (Sonner): For feedback messages
   
 - **Customizations**:
@@ -130,13 +133,15 @@ Animations should mimic the mechanical and analog nature of vintage equipment. B
   - Next: CaretRight (thick, bold)  
   - Play: Play (bold)
   - Pause: Pause (bold)
+  - Dislike/Skip: ThumbsDown (bold)
   - Power: Power (circle with line) in LED button style
   
 - **Spacing**:
   - Radio body: max-width 600px, centered on screen with generous padding
-  - Control buttons: gap-6 (24px) for compact control panel
+  - Control buttons: gap-4 (16px) for 5-button control panel
+  - Display area: Fixed min-height to prevent layout shift during track changes
   - Display to controls: mt-8 (32px) to separate display from interaction area
-  - Button size: h-16 w-16 (64px) for satisfying tactile interaction
+  - Button size: h-14 w-14 (56px) for balanced 5-button layout
   
 - **Mobile**: 
   Fixed single-size radio interface that scales proportionally:

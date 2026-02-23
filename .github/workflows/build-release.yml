@@ -1,0 +1,108 @@
+name: Build and Release Desktop App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Get package version
+        id: package_version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build web app
+        run: npm run build
+      
+      - name: Install Electron dependencies
+        run: |
+          cd electron
+          npm ci
+      
+      - name: Package Electron app (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd electron
+          npm run package:mac
+      
+      - name: Package Electron app (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd electron
+          npm run package:linux
+      
+      - name: Package Electron app (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd electron
+          npm run package:win
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            electron/dist/*.dmg
+            electron/dist/*.AppImage
+            electron/dist/*.deb
+            electron/dist/*.rpm
+            electron/dist/*.exe
+            electron/dist/*.zip
+          draft: false
+          prerelease: false
+          name: Release v${{ steps.package_version.outputs.version }}
+          body: |
+            Vintage Radio - YouTube Music Desktop App
+            
+            Version: ${{ steps.package_version.outputs.version }}
+            
+            ### Downloads
+            - **macOS**: Download the `.dmg` file
+            - **Linux**: Download the `.AppImage`, `.deb`, or `.rpm` file
+            - **Windows**: Download the `.exe` installer
+            
+            ### Installation
+            1. Download the appropriate file for your platform
+            2. Install/run the application
+            3. Sign in to YouTube Music when prompted
+            4. Enjoy your vintage radio experience!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifacts (non-tag builds)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: vintage-radio-${{ matrix.os }}-${{ steps.package_version.outputs.version }}
+          path: |
+            electron/dist/*.dmg
+            electron/dist/*.AppImage
+            electron/dist/*.deb
+            electron/dist/*.rpm
+            electron/dist/*.exe
+            electron/dist/*.zip
+          if-no-files-found: warn

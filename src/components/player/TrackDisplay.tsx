@@ -27,25 +27,23 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
   }, [currentTime, duration, lyrics.length])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-h-[200px] flex flex-col">
       <div className="text-center space-y-1">
         <div className="text-xs font-mono text-muted-foreground tracking-widest">
           NOW PLAYING
         </div>
-        <div className={`amber-glow rounded-lg px-6 py-3 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`}>
+        <div className={`amber-glow rounded-lg px-6 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`} style={{ minHeight: '68px', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '12px', paddingBottom: '12px' }}>
           <div className="text-lg font-bold text-accent-foreground tracking-wide truncate">
             {isChangingTrack ? 'TUNING...' : trackInfo.title.toUpperCase()}
           </div>
-          {!isChangingTrack && trackInfo.artist && (
-            <div className="text-sm text-accent-foreground/80 tracking-wide truncate">
-              {trackInfo.artist.toUpperCase()}
-            </div>
-          )}
+          <div className="text-sm text-accent-foreground/80 tracking-wide truncate" style={{ minHeight: '20px' }}>
+            {!isChangingTrack && trackInfo.artist ? trackInfo.artist.toUpperCase() : '\u00A0'}
+          </div>
         </div>
       </div>
 
-      {lyrics.length > 0 && !isChangingTrack && (
-        <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30">
+      <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30 flex-1" style={{ minHeight: '112px' }}>
+        {lyrics.length > 0 && !isChangingTrack ? (
           <ScrollArea className="h-24">
             <div className="space-y-2">
               {lyrics.map((line, index) => (
@@ -64,8 +62,12 @@ export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChang
               ))}
             </div>
           </ScrollArea>
-        </div>
-      )}
+        ) : (
+          <div className="h-24 flex items-center justify-center text-xs font-mono text-muted-foreground">
+            {isChangingTrack ? 'LOADING...' : 'NO LYRICS AVAILABLE'}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
