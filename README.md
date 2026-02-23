@@ -5,47 +5,34 @@
 ## 功能特性
 
 ✅ **复古电台界面** - 木纹纹理、黄铜旋钮、琥珀色显示屏
+✅ **YouTube Music 登录** - 集成 YouTube Music 登录界面
+✅ **播放控制** - 播放/暂停、上一首、下一首
 ✅ **歌曲信息显示** - 实时显示歌名、艺术家
-✅ **歌词同步显示** - 正在播放的歌词滚动显示
-✅ **简单控制** - 上一首、下一首、音量调节、退出
+✅ **歌词同步显示** - 正在播放的歌词滚动显示  
+✅ **音量调节** - 复古旋钮式音量控制
 ✅ **自动 Dislike** - 切换下一首时自动 dislike 当前歌曲
 ✅ **离线检测** - 断网时显示"无信号"提示
 ✅ **音量持久化** - 记住上次设置的音量
 
-## 已完成的任务
+## YouTube Music API 集成
 
-### 第 1 次迭代
-- ✅ 基础 YouTube Music 集成
-- ✅ 复古收音机 UI 设计
-- ✅ 基本控制功能（上一首、下一首、音量）
+由于浏览器安全限制，完整的 YouTube Music 控制需要通过 **Electron 桌面应用** 实现。
 
-### 第 2 次迭代
-- ✅ 优化复古风格主题
-- ✅ 木纹纹理背景
-- ✅ 黄铜金属旋钮
-- ✅ 琥珀色发光显示
+### Web 版功能
+- ✅ YouTube Music 登录界面
+- ✅ 复古收音机 UI
+- ✅ 基础控制布局
+- ⚠️ 实际播放控制需要 Electron
 
-### 第 3 次迭代
-- ✅ 自动 dislike 功能
-- ✅ 音量旋钮交互优化
-- ✅ 状态持久化
+### Electron 版功能  
+- ✅ 完整 YouTube Music 控制
+- ✅ 播放/暂停、上一首/下一首
+- ✅ 歌曲信息提取
+- ✅ 歌词同步显示
+- ✅ Dislike 功能
+- ✅ 音量控制
 
-### 第 4 次迭代（当前）
-- ✅ **添加歌名和歌词显示组件**
-- ✅ **移除底部无用的两个圆点**
-- ✅ **创建桌面应用打包指南**
-
-## 歌词功能说明
-
-应用现在包含一个 `TrackDisplay` 组件，用于显示：
-- 当前播放的歌曲名称（大写显示在琥珀色发光区域）
-- 艺术家名称（歌曲名称下方）
-- 实时同步的歌词（在卡片区域滚动显示，当前行高亮）
-
-**注意**: 由于 YouTube Music 在 iframe 中的限制，歌词功能需要通过 `postMessage` API 与 YouTube Music 进行通信。在实际部署时，可能需要：
-1. 使用浏览器扩展来提取歌曲信息
-2. 使用 Electron 的 webview 或 BrowserView
-3. 使用第三方歌词 API
+详见 [YOUTUBE_MUSIC_INTEGRATION.md](./YOUTUBE_MUSIC_INTEGRATION.md) 了解集成原理。
 
 ## 打包为桌面应用
 
@@ -80,19 +67,22 @@ npm run electron:build:linux
 ## 项目结构
 
 \`\`\`
-├── electron/              # Electron 主进程文件
-│   ├── main.js           # Electron 入口
-│   └── preload.js        # 预加载脚本
+├── electron/                      # Electron 集成
+│   ├── main.js                   # Electron 主进程
+│   ├── preload.js                # 预加载脚本
+│   └── ytmusic-control.js        # YouTube Music 控制脚本
 ├── src/
 │   ├── components/
 │   │   └── player/
 │   │       ├── VintageRadio.tsx      # 主收音机组件
-│   │       ├── TrackDisplay.tsx      # 歌曲信息和歌词显示
-│   │       └── PlayerControls.tsx    # 播放控制
-│   ├── App.tsx           # 应用入口
-│   └── index.css         # 主题样式
-├── DESKTOP_APP_GUIDE.md  # 详细打包指南
-└── package.json          # 依赖和构建脚本
+│   │       └── TrackDisplay.tsx      # 歌曲信息和歌词显示
+│   ├── hooks/
+│   │   └── use-youtube-music.ts      # YouTube Music 控制 Hook
+│   ├── App.tsx                   # 应用入口（含登录界面）
+│   └── index.css                 # 复古主题样式
+├── DESKTOP_APP_GUIDE.md          # 桌面应用打包指南
+├── YOUTUBE_MUSIC_INTEGRATION.md  # API 集成说明
+└── package.json                  # 依赖和构建脚本
 \`\`\`
 
 ## 技术栈
@@ -101,8 +91,8 @@ npm run electron:build:linux
 - **TypeScript** - 类型安全
 - **Tailwind CSS** - 样式框架
 - **shadcn/ui** - UI 组件库
-- **Framer Motion** - 动画
-- **Electron** - 桌面应用框架（可选）
+- **Phosphor Icons** - 图标库
+- **Electron** - 桌面应用框架
 - **Vite** - 构建工具
 
 ## 设计特色
@@ -122,16 +112,41 @@ npm run electron:build:linux
 - **琥珀发光**: 柔和脉冲动画模拟电子管发光
 - **扬声器网格**: 点状重复图案
 
-## 未来改进方向
+## 控制说明
 
-- [ ] 实现真实的 YouTube Music API 集成
-- [ ] 添加播放列表功能
-- [ ] 实现搜索功能
-- [ ] 添加均衡器效果
-- [ ] 支持自定义主题
-- [ ] 添加键盘快捷键
-- [ ] 实现系统托盘集成
-- [ ] 媒体按键支持
+- **PREV 按钮**: 上一首歌曲
+- **PLAY/PAUSE 按钮**: 播放/暂停（居中）
+- **NEXT 按钮**: 下一首（自动 dislike 当前歌曲）
+- **VOL 旋钮**: 拖动旋转调节音量
+- **POWER 按钮**: 退出应用
+
+## 开发日志
+
+### 第 5 次迭代（当前）
+- ✅ **实现真实 YouTube Music API 集成**
+  - 创建 `use-youtube-music` Hook 用于播放控制
+  - Electron 脚本注入 YouTube Music 页面
+  - 通过 postMessage 实现双向通信
+- ✅ **添加登录功能**
+  - 首次启动显示 YouTube Music 登录界面
+  - 登录后进入复古收音机界面
+- ✅ **添加播放/暂停按钮**
+  - 新增居中播放/暂停控制
+  - 实时显示播放状态
+- ✅ **实现歌词功能**
+  - TrackDisplay 组件显示同步歌词
+  - 根据播放进度高亮当前歌词行
+- ✅ **实现 Dislike 功能**
+  - 点击 NEXT 自动 dislike 当前歌曲
+- ✅ **删除未使用代码**
+  - 移除 MiniPlayer 组件
+  - 移除 PlayerControls 组件  
+  - 移除 SearchBar 和 SettingsDialog
+
+### 之前的迭代
+- ✅ 基础 UI 和控制功能
+- ✅ 复古风格主题优化
+- ✅ 状态持久化
 
 ## 许可证
 

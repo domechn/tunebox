@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState } from 'react'
 import { VintageRadio } from '@/components/player/VintageRadio'
 import { toast, Toaster } from 'sonner'
+import { Button } from '@/components/ui/button'
 
 function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [showLogin, setShowLogin] = useState(true)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const YOUTUBE_MUSIC_URL = 'https://music.youtube.com'
@@ -31,30 +33,64 @@ function App() {
     window.close()
   }
 
+  const handleContinue = () => {
+    setShowLogin(false)
+  }
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       <Toaster position="top-center" />
       
-      <iframe
-        ref={iframeRef}
-        src={YOUTUBE_MUSIC_URL}
-        className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
-        title="YouTube Music"
-        allow="autoplay; encrypted-media"
-        sandbox="allow-same-origin allow-scripts allow-forms"
-      />
-
-      {!isOnline && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-sm z-50">
-          <div className="text-center space-y-4 p-8">
-            <div className="text-6xl animate-pulse">📻</div>
-            <h2 className="text-2xl font-bold text-foreground">NO SIGNAL</h2>
-            <p className="text-muted-foreground font-mono text-sm">Check antenna connection</p>
+      {showLogin ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-background via-background to-muted">
+          <div className="wood-grain rounded-3xl p-12 shadow-2xl border-8 border-card max-w-md w-full mx-4">
+            <div className="space-y-6 text-center">
+              <div className="text-6xl mb-4">📻</div>
+              <h1 className="text-2xl font-bold text-foreground">VINTAGE RADIO</h1>
+              <p className="text-sm text-muted-foreground font-mono">
+                Sign in to YouTube Music below, then return here to start streaming
+              </p>
+              <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30">
+                <iframe
+                  ref={iframeRef}
+                  src={YOUTUBE_MUSIC_URL}
+                  className="w-full h-96 rounded"
+                  title="YouTube Music Login"
+                  allow="autoplay; encrypted-media"
+                />
+              </div>
+              <Button
+                onClick={handleContinue}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-base font-bold"
+              >
+                CONTINUE TO RADIO
+              </Button>
+            </div>
           </div>
         </div>
-      )}
+      ) : (
+        <>
+          <iframe
+            ref={iframeRef}
+            src={YOUTUBE_MUSIC_URL}
+            className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
+            title="YouTube Music"
+            allow="autoplay; encrypted-media"
+          />
 
-      <VintageRadio iframeRef={iframeRef} onExit={handleExit} />
+          {!isOnline && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-sm z-50">
+              <div className="text-center space-y-4 p-8">
+                <div className="text-6xl animate-pulse">📻</div>
+                <h2 className="text-2xl font-bold text-foreground">NO SIGNAL</h2>
+                <p className="text-muted-foreground font-mono text-sm">Check antenna connection</p>
+              </div>
+            </div>
+          )}
+
+          <VintageRadio iframeRef={iframeRef} onExit={handleExit} />
+        </>
+      )}
     </div>
   )
 }

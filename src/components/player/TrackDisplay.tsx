@@ -8,43 +8,23 @@ interface TrackInfo {
 }
 
 interface TrackDisplayProps {
+  trackInfo: TrackInfo
+  lyrics: string[]
+  currentTime: number
+  duration: number
   isChangingTrack: boolean
 }
 
-export function TrackDisplay({ isChangingTrack }: TrackDisplayProps) {
-  const [trackInfo, setTrackInfo] = useState<TrackInfo>({
-    title: 'YouTube Music',
-    artist: 'Radio Stream'
-  })
-  const [lyrics, setLyrics] = useState<string[]>([])
+export function TrackDisplay({ trackInfo, lyrics, currentTime, duration, isChangingTrack }: TrackDisplayProps) {
   const [currentLyricIndex, setCurrentLyricIndex] = useState(0)
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'youtube-music-track-info') {
-        setTrackInfo({
-          title: event.data.title || 'Unknown Track',
-          artist: event.data.artist || 'Unknown Artist',
-          album: event.data.album
-        })
-      }
-      
-      if (event.data.type === 'youtube-music-lyrics') {
-        const lyricsArray = event.data.lyrics ? event.data.lyrics.split('\n').filter((line: string) => line.trim()) : []
-        setLyrics(lyricsArray)
-        setCurrentLyricIndex(0)
-      }
-
-      if (event.data.type === 'youtube-music-time-update' && lyrics.length > 0) {
-        const progress = event.data.progress || 0
-        const newIndex = Math.floor(progress * lyrics.length)
-        setCurrentLyricIndex(Math.min(newIndex, lyrics.length - 1))
-      }
+    if (lyrics.length > 0 && duration > 0) {
+      const progress = currentTime / duration
+      const newIndex = Math.floor(progress * lyrics.length)
+      setCurrentLyricIndex(Math.min(newIndex, lyrics.length - 1))
     }
-
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [lyrics.length])
+  }, [currentTime, duration, lyrics.length])
 
   return (
     <div className="space-y-4">

@@ -1,14 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, RefObject } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { CaretLeft, CaretRight, Power } from '@phosphor-icons/react'
+import { CaretLeft, CaretRight, Power, Play, Pause, ThumbsDown } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { TrackDisplay } from './TrackDisplay'
+import { useYouTubeMusic } from '@/hooks/use-youtube-music'
 
 interface VintageRadioProps {
-  iframeRef: React.RefObject<HTMLIFrameElement | null>
+  iframeRef: RefObject<HTMLIFrameElement | null>
   onExit: () => void
 }
 
@@ -19,53 +19,27 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
   const isDraggingRef = useRef(false)
   const lastAngleRef = useRef(0)
 
+  const ytMusic = useYouTubeMusic(iframeRef)
+
   useEffect(() => {
     if (volume && volume[0] !== undefined) {
       const volumeValue = volume[0]
       setKnobRotation((volumeValue / 100) * 270 - 135)
+      ytMusic.setVolume(volumeValue)
     }
-  }, [volume])
+  }, [volume, ytMusic])
 
   const handlePrevious = () => {
     setIsChangingTrack(true)
     toast('Tuning to previous station...', { icon: '📻' })
-    
-    if (iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage({
-          type: 'youtube-music-command',
-          command: 'previous'
-        }, '*')
-      } catch (e) {
-        console.error('Failed to send previous command:', e)
-      }
-    }
-    
+    ytMusic.previous()
     setTimeout(() => setIsChangingTrack(false), 1000)
   }
 
   const handleNext = () => {
     setIsChangingTrack(true)
     toast('Changing station...', { icon: '📻' })
-    
-    if (iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage({
-          type: 'youtube-music-command',
-          command: 'dislike'
-        }, '*')
-        
-        setTimeout(() => {
-          iframeRef.current?.contentWindow?.postMessage({
-            type: 'youtube-music-command',
-            command: 'next'
-          }, '*')
-        }, 100)
-      } catch (e) {
-        console.error('Failed to send next command:', e)
-      }
-    }
-    
+    ytMusic.nextAndDislike()
     setTimeout(() => setIsChangingTrack(false), 1000)
   }
 
@@ -140,19 +114,25 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
             </div>
 
             <div className="speaker-grill rounded-2xl p-6 flex items-center justify-center border-4 border-muted/50">
-              <TrackDisplay isChangingTrack={isChangingTrack} />
+              <TrackDisplay 
+                trackInfo={ytMusic.trackInfo}
+                lyrics={ytMusic.lyrics}
+                currentTime={ytMusic.playbackState.currentTime}
+                duration={ytMusic.playbackState.duration}
+                isChangingTrack={isChangingTrack}
+              />
             </div>
 
-            <div className="grid grid-cols-3 gap-8 items-center">
+            <div className="grid grid-cols-4 gap-6 items-center">
               <div className="flex flex-col items-center gap-3">
                 <Button
                   size="lg"
                   onClick={handlePrevious}
                   disabled={isChangingTrack}
-                  className="h-20 w-20 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
+                  className="h-16 w-16 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
                   style={{ animation: 'none' }}
                 >
-                  <CaretLeft size={32} weight="bold" className="text-primary" />
+                  <CaretLeft size={28} weight="bold" className="text-primary" />
                 </Button>
                 <Badge variant="outline" className="text-[10px] font-mono">
                   PREV
@@ -160,26 +140,20 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
               </div>
 
               <div className="flex flex-col items-center gap-3">
-                <div className="relative">
-                  <div
-                    id="volume-knob"
-                    className="brass-knob h-32 w-32 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center transition-shadow hover:shadow-xl"
-                    onMouseDown={handleKnobMouseDown}
-                    style={{
-                      transform: `rotate(${knobRotation}deg)`,
-                      transition: isDraggingRef.current ? 'none' : 'transform 0.1s ease-out'
-                    }}
-                  >
-                    <div className="absolute top-3 h-1 w-8 bg-accent-foreground rounded-full"></div>
-                    <div className="absolute inset-8 rounded-full bg-muted/50 border-2 border-primary/40 flex items-center justify-center">
-                      <div className="text-sm font-bold text-primary-foreground">
-                        {volume ? volume[0] : 70}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <Button
+                  size="lg"
+                  onClick={ytMusic.togglePlayPause}
+                  className="h-16 w-16 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
+                  style={{ animation: 'none' }}
+                >
+                  {ytMusic.playbackState.isPlaying ? (
+                    <Pause size={28} weight="bold" className="text-primary" />
+                  ) : (
+                    <Play size={28} weight="bold" className="text-primary" />
+                  )}
+                </Button>
                 <Badge variant="outline" className="text-[10px] font-mono">
-                  VOLUME
+                  {ytMusic.playbackState.isPlaying ? 'PAUSE' : 'PLAY'}
                 </Badge>
               </div>
 
@@ -188,13 +162,37 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
                   size="lg"
                   onClick={handleNext}
                   disabled={isChangingTrack}
-                  className="h-20 w-20 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
+                  className="h-16 w-16 rounded-full bg-card hover:bg-card/80 active:scale-95 transition-all shadow-lg border-4 border-primary/30"
                   style={{ animation: 'none' }}
                 >
-                  <CaretRight size={32} weight="bold" className="text-primary" />
+                  <CaretRight size={28} weight="bold" className="text-primary" />
                 </Button>
                 <Badge variant="outline" className="text-[10px] font-mono">
                   NEXT
+                </Badge>
+              </div>
+
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div
+                    id="volume-knob"
+                    className="brass-knob h-24 w-24 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center transition-shadow hover:shadow-xl"
+                    onMouseDown={handleKnobMouseDown}
+                    style={{
+                      transform: `rotate(${knobRotation}deg)`,
+                      transition: isDraggingRef.current ? 'none' : 'transform 0.1s ease-out'
+                    }}
+                  >
+                    <div className="absolute top-2 h-1 w-6 bg-accent-foreground rounded-full"></div>
+                    <div className="absolute inset-6 rounded-full bg-muted/50 border-2 border-primary/40 flex items-center justify-center">
+                      <div className="text-xs font-bold text-primary-foreground">
+                        {volume ? volume[0] : 70}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  VOL
                 </Badge>
               </div>
             </div>
