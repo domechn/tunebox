@@ -1,146 +1,125 @@
-# YouTube Music Desktop App
+# Vintage Radio YouTube Music Player
 
-A cross-platform (Windows, Mac, Linux) desktop application for YouTube Music that provides a native-like music streaming experience with enhanced controls and features.
+A retro-styled desktop radio application that streams YouTube Music recommendations with nostalgic, analog-inspired controls.
 
 **Experience Qualities**:
-1. **Immersive** - Full-screen music experience that puts content first, minimizing distractions
-2. **Responsive** - Instant feedback to user actions with smooth transitions and animations
-3. **Polished** - Professional UI that feels like a premium native application
+1. **Nostalgic** - Evokes the warm, tactile feeling of vintage radio equipment from the 1960s-70s
+2. **Simple** - Stripped-down controls focusing on the essential radio experience: tune, adjust volume, exit
+3. **Warm** - Color palette and design elements that feel comforting and timeless like classic audio equipment
 
-**Complexity Level**: Complex Application (advanced functionality with multiple views, playback controls, search, playlists, and persistent state management)
-This requires a sophisticated player interface, search functionality, playlist management, and seamless integration with YouTube Music's web player through an embedded iframe approach.
+**Complexity Level**: Light Application (single-view radio interface with basic playback controls)
+This is a simplified radio-style player that automatically plays YouTube Music recommendations. Users can only skip tracks (next/previous), adjust volume, and exit - mimicking the simplicity of a physical radio.
 
 ## Essential Features
 
-### 1. YouTube Music Web Player Integration
-- **Functionality**: Embeds YouTube Music web player in a full-screen iframe
-- **Purpose**: Provides access to full YouTube Music functionality without reimplementing streaming
+### 1. Radio Station Display
+- **Functionality**: Shows YouTube Music in a hidden/background iframe while displaying a vintage radio interface
+- **Purpose**: Provides the nostalgia of a physical radio while streaming modern music content
 - **Trigger**: Automatically loads on app launch
-- **Progression**: App launch → Load YouTube Music URL → Display in iframe → User interacts normally
-- **Success criteria**: YouTube Music loads successfully and is fully interactive
+- **Progression**: App launch → Load YouTube Music recommendations → Display vintage radio UI → Play automatically
+- **Success criteria**: Music starts playing with vintage radio interface visible
 
-### 2. Custom Player Controls Overlay
-- **Functionality**: Native controls overlaying the web player for play/pause, next/previous, volume
-- **Purpose**: Provides quick access to playback controls without navigating YouTube Music UI
-- **Trigger**: Controls appear on hover or always visible based on user preference
-- **Progression**: User hovers over player → Controls fade in → User clicks control → Action executes → Controls fade out
-- **Success criteria**: Controls respond instantly and sync with YouTube Music playback state
+### 2. Previous/Next Track Buttons
+- **Functionality**: Large, tactile-looking buttons to skip to previous or next track
+- **Purpose**: Mimics tuning to different stations on a vintage radio
+- **Trigger**: User clicks previous or next button
+- **Progression**: User clicks next → Current track is auto-disliked → Skip to next YouTube Music recommendation
+- **Success criteria**: Tracks change smoothly, current track gets disliked when skipping forward
 
-### 3. Search Integration
-- **Functionality**: Quick search bar that redirects to YouTube Music search results
-- **Purpose**: Fast access to search without navigating through YouTube Music interface
-- **Trigger**: User clicks search icon or presses keyboard shortcut (Ctrl/Cmd+F)
-- **Progression**: User opens search → Types query → Presses enter → YouTube Music navigates to search results
-- **Success criteria**: Search executes correctly and displays results in player
+### 3. Volume Knob Control
+- **Functionality**: Rotary knob-style volume slider with vintage aesthetic
+- **Purpose**: Authentic radio experience with tactile-feeling volume adjustment
+- **Trigger**: User drags or clicks the volume control
+- **Progression**: User adjusts knob → Volume changes in real-time → Position persists
+- **Success criteria**: Volume adjusts smoothly with visual feedback
 
-### 4. Mini Player Mode
-- **Functionality**: Compact always-on-top window showing current track and basic controls
-- **Purpose**: Allows users to control music while working in other applications
-- **Trigger**: User clicks mini player button
-- **Progression**: Full player → Click mini mode → Window resizes to compact view → Shows album art + controls → User can return to full mode
-- **Success criteria**: Window stays on top, shows current track info, controls work
-
-### 5. Keyboard Shortcuts
-- **Functionality**: Global keyboard shortcuts for play/pause, skip, volume control
-- **Purpose**: Control music without switching to the app window
-- **Trigger**: User presses registered keyboard combination
-- **Progression**: User presses shortcut → App detects keypress → Executes corresponding action → Provides visual feedback
-- **Success criteria**: All shortcuts work reliably even when app is in background
-
-### 6. Settings & Preferences
-- **Functionality**: Persistent user settings for theme, controls visibility, startup behavior
-- **Purpose**: Customization to match user preferences and workflow
-- **Trigger**: User opens settings menu
-- **Progression**: User clicks settings → Opens settings panel → Adjusts preferences → Settings auto-save → Take effect immediately
-- **Success criteria**: All settings persist across app restarts
+### 4. Power/Exit Button
+- **Functionality**: Prominent power button to close the application
+- **Purpose**: Complete the vintage radio metaphor with an authentic power control
+- **Trigger**: User clicks power button
+- **Progression**: User clicks power → Confirmation (optional) → App closes gracefully
+- **Success criteria**: Application exits cleanly without errors
 
 ## Edge Case Handling
 
-- **Network Disconnection**: Display overlay message when offline, attempt reconnection automatically
-- **YouTube Music Changes**: If YouTube Music UI changes, iframe continues to work as it's the official web interface
-- **Invalid URLs**: Validate and reset to home page if navigation fails
-- **Missing User Session**: Show login prompt if user needs to authenticate with YouTube Music
-- **Window Resize Limits**: Set minimum window dimensions to prevent unusable layouts
-- **Audio Focus**: Handle audio playback properly when system has multiple audio sources
+- **Network Disconnection**: Display vintage "No Signal" static/noise overlay when offline
+- **YouTube Music Loading**: Show animated "Tuning..." indicator during initial load
+- **Failed Track Skip**: If skip fails, show brief "Please Wait" message in radio display
+- **Volume Persistence**: Remember last volume setting between sessions
 
 ## Design Direction
 
-The design should evoke a sense of modern sophistication and focus. Think dark, immersive theaters with subtle ambient lighting that puts the content center stage. The interface should feel like a premium audio application - refined, uncluttered, and purpose-built for music enjoyment. Visual elements should be minimal but impactful, using depth and layering to create hierarchy.
+The design should transport users to the golden age of analog audio equipment - warm wood grain textures, brushed metal controls, soft ambient lighting behind speaker grills. Think vintage 1960s-70s transistor radios and hi-fi equipment: tactile knobs, satisfying button clicks, warm glowing displays. Colors should be earthy and inviting - walnut wood browns, brass metal accents, warm amber display lights, and soft fabric speaker covers.
 
 ## Color Selection
 
-A dark, music-focused theme with vibrant accent colors that pop against the dark backdrop.
+Warm, nostalgic color palette inspired by vintage audio equipment and mid-century design.
 
-- **Primary Color**: Deep Purple `oklch(0.45 0.15 290)` - Represents creativity and music, energetic yet sophisticated
+- **Primary Color**: Rich Walnut `oklch(0.35 0.04 55)` - Deep wood brown for the radio body/background, warm and grounding
 - **Secondary Colors**: 
-  - Dark Background: `oklch(0.12 0.01 270)` - Almost black with subtle purple tint for depth
-  - Surface: `oklch(0.18 0.02 270)` - Elevated surfaces slightly lighter than background
-- **Accent Color**: Electric Cyan `oklch(0.7 0.15 195)` - Bright, energetic color for playback controls and active states
+  - Wood Grain: `oklch(0.45 0.05 50)` - Lighter wood tones for texture and depth
+  - Brass Accent: `oklch(0.65 0.12 75)` - Metallic gold for knobs and trim
+  - Speaker Fabric: `oklch(0.40 0.03 60)` - Woven texture color for speaker grill areas
+- **Accent Color**: Warm Amber `oklch(0.70 0.15 65)` - Glowing display light, warm and inviting like tube amplifier lights
 - **Foreground/Background Pairings**:
-  - Background (Dark `oklch(0.12 0.01 270)`): White text `oklch(0.98 0 0)` - Ratio 18.5:1 ✓
-  - Surface (Medium `oklch(0.18 0.02 270)`): White text `oklch(0.98 0 0)` - Ratio 15.2:1 ✓
-  - Primary (Purple `oklch(0.45 0.15 290)`): White text `oklch(0.98 0 0)` - Ratio 6.8:1 ✓
-  - Accent (Cyan `oklch(0.7 0.15 195)`): Dark text `oklch(0.12 0.01 270)` - Ratio 13.1:1 ✓
+  - Background (Walnut `oklch(0.35 0.04 55)`): Cream text `oklch(0.92 0.03 75)` - Ratio 7.2:1 ✓
+  - Wood Surface `oklch(0.45 0.05 50)`: Cream text `oklch(0.92 0.03 75)` - Ratio 5.1:1 ✓
+  - Brass Accent `oklch(0.65 0.12 75)`: Dark brown text `oklch(0.25 0.04 55)` - Ratio 6.8:1 ✓
+  - Amber Display `oklch(0.70 0.15 65)`: Dark brown text `oklch(0.25 0.04 55)` - Ratio 8.3:1 ✓
 
 ## Font Selection
 
-The typography should convey modernity and clarity, with excellent readability for song titles and artist names in a music player context.
+Typography should evoke vintage analog displays and retro signage while maintaining readability.
 
-**Primary**: Inter (sans-serif) - Clean, highly legible, excellent for UI elements and text at various sizes
-**Secondary**: DM Sans (sans-serif) - Geometric and modern for headings and emphasis
+**Primary**: Orbitron (geometric sans-serif) - Digital/LED display aesthetic for station info and track titles
+**Secondary**: Space Mono (monospace) - Technical, retro-computing feel for labels and metadata
+**Fallback**: Courier New (monospace) - Classic typewriter aesthetic if custom fonts unavailable
 
 - **Typographic Hierarchy**:
-  - H1 (App Title/Current Track): DM Sans Bold / 32px / -0.02em letter-spacing / 1.1 line-height
-  - H2 (Section Headers): DM Sans SemiBold / 20px / -0.01em letter-spacing / 1.2 line-height
-  - Body (Artist Names, Labels): Inter Regular / 14px / 0em letter-spacing / 1.5 line-height
-  - Small (Timestamps, Metadata): Inter Medium / 12px / 0.01em letter-spacing / 1.4 line-height
-  - Button Text: Inter SemiBold / 14px / 0em letter-spacing
+  - H1 (Station/Track Display): Orbitron Bold / 28px / 0.05em letter-spacing / 1.2 line-height / uppercase
+  - Display Text (Artist Info): Orbitron Medium / 16px / 0.03em letter-spacing / 1.3 line-height
+  - Labels (Control Labels): Space Mono Regular / 11px / 0.1em letter-spacing / 1.4 line-height / uppercase
+  - Indicators (Volume Level): Space Mono Bold / 14px / 0.08em letter-spacing
 
 ## Animations
 
-Animations should enhance the music listening experience with smooth, flowing transitions that feel rhythmic and alive. Use subtle pulsing effects on active playback indicators, smooth fades for control overlays, and elastic transitions for mode changes. Scale and opacity transitions should feel synchronized, like they're moving to a beat. All animations should be performant and respectful of reduced-motion preferences.
+Animations should mimic the mechanical and analog nature of vintage equipment. Button presses should have satisfying "click" feedback with slight depth changes. The volume knob should rotate with realistic physics and momentum. Display text should have a subtle warm glow/flicker like old LED or nixie tube displays. When switching tracks, create a brief "tuning" effect similar to changing radio stations. All animations should feel tactile and mechanical rather than digital and instant.
 
 ## Component Selection
 
 - **Components**:
-  - Button: Primary actions (play/pause, skip) with hover states and icon support
-  - Slider: Volume control and progress bar with custom styling
-  - Dialog: Settings panel with smooth entry/exit animations
-  - Popover: Quick menus for additional options
-  - Card: Container for control panels and overlays with glassmorphic effects
-  - Separator: Visual dividers in settings and control areas
-  - Switch: Toggle settings in preferences panel
-  - Tooltip: Helpful hints on hover for icon-only buttons
+  - Button: Large mechanical-style buttons for Previous/Next with pressed depth effect
+  - Slider: Circular rotary knob for volume with rotation animation
+  - Card: Main radio body container with wood grain texture background
+  - Badge: Small labels for button functions ("PREV", "NEXT", "POWER")
   
 - **Customizations**:
-  - Glassmorphic control panels using backdrop-filter blur with semi-transparent backgrounds
-  - Custom progress slider with accent color fill and hover preview
-  - Circular buttons for playback controls with scale-on-press animation
-  - Custom volume slider with icon indicators
+  - Wood grain background using CSS gradients or subtle texture patterns
+  - Metallic button bezels with brass/chrome gradient effects
+  - Glowing amber display area with inner shadow for depth
+  - Speaker grill pattern using CSS repeating gradients (mesh/dots)
+  - Rotary volume knob with radial gradient and shadow for 3D depth
   
 - **States**:
-  - Buttons: Rest (subtle glow) → Hover (scale 1.05, brighter glow) → Active (scale 0.95) → Disabled (50% opacity)
-  - Controls Overlay: Hidden → Hover-triggered fade-in (200ms) → Active → Fade-out after 3s idle
-  - Mini Player Toggle: Full mode indicator vs compact mode indicator with smooth icon morph
+  - Buttons: Rest (raised, slight shadow) → Hover (brighter highlight) → Active (pressed inward, reduced shadow) → Disabled (dimmed)
+  - Volume Knob: Rest → Hover (cursor changes) → Dragging (active rotation indicator) → Release (slight bounce)
+  - Display: Idle (steady glow) → Active playback (subtle pulse) → Tuning (flicker animation)
+  - Power Button: Off state (dim red LED) → Hover (brighter red) → Click (immediate close)
   
 - **Icon Selection**:
-  - Play/Pause: Play/Pause phosphor icons with circle backgrounds
-  - Skip: SkipForward/SkipBack with directional clarity
-  - Volume: SpeakerHigh/SpeakerX with animated states
-  - Search: MagnifyingGlass for search activation
-  - Settings: Gear for preferences panel
-  - MiniPlayer: PictureInPicture for mode toggle
-  - Close/Minimize: X/Minus for window controls
+  - Previous: CaretLeft (thick, bold) or ArrowLeft with double chevron
+  - Next: CaretRight (thick, bold) or ArrowRight with double chevron  
+  - Power: Power (circle with line) in LED button style
+  - Volume indicator: Concentric arcs or speaker cone symbol
   
 - **Spacing**:
-  - Control buttons: gap-4 (16px) between buttons in a row
-  - Overlay padding: p-6 (24px) for control panel containers
-  - Settings sections: space-y-6 (24px) between setting groups
-  - Margins: mt-8 (32px) for major section separation
+  - Radio body: max-width 600px, centered on screen with generous padding
+  - Control buttons: gap-8 (32px) for spacious vintage control panel feel
+  - Display to controls: mt-12 (48px) to separate display from interaction area
+  - Button padding: Large touch targets (min 60px) for satisfying tactile interaction
   
 - **Mobile**: 
-  While this is a desktop app, responsive design ensures usability on smaller windows:
-  - Controls scale down but remain touch-friendly (min 44px tap targets)
-  - Mini player becomes even more compact on narrow displays
-  - Settings dialog uses full viewport on very small windows
-  - Text truncates with ellipsis to prevent overflow
+  Fixed single-size radio interface that scales proportionally:
+  - Entire radio scales down to fit viewport while maintaining aspect ratio
+  - Minimum comfortable size prevents unusable tiny controls
+  - On very small screens, consider full-screen simplified view
