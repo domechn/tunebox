@@ -43,14 +43,14 @@ function App() {
       
       {showLogin ? (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-background via-background to-muted">
-          <div className="wood-grain rounded-3xl p-12 shadow-2xl border-8 border-card max-w-md w-full mx-4">
+          <div className="wood-grain rounded-3xl p-12 shadow-2xl border-8 border-card max-w-md w-full mx-4" style={{ animation: 'scale-in 0.6s ease-out' }}>
             <div className="space-y-6 text-center">
-              <div className="text-6xl mb-4">📻</div>
-              <h1 className="text-2xl font-bold text-foreground">VINTAGE RADIO</h1>
-              <p className="text-sm text-muted-foreground font-mono">
+              <div className="text-6xl mb-4" style={{ animation: 'rotate-in 0.8s ease-out' }}>📻</div>
+              <h1 className="text-2xl font-bold text-foreground" style={{ animation: 'slide-down 0.5s ease-out 0.2s backwards' }}>VINTAGE RADIO</h1>
+              <p className="text-sm text-muted-foreground font-mono" style={{ animation: 'fade-in 0.5s ease-out 0.3s backwards' }}>
                 Sign in to YouTube Music below, then return here to start streaming
               </p>
-              <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30">
+              <div className="bg-card/50 rounded-lg p-4 border-2 border-muted/30" style={{ animation: 'slide-up 0.5s ease-out 0.4s backwards' }}>
                 <iframe
                   ref={iframeRef}
                   src={YOUTUBE_MUSIC_URL}
@@ -61,7 +61,8 @@ function App() {
               </div>
               <Button
                 onClick={handleContinue}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-base font-bold"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-base font-bold transition-all hover:scale-105 active:scale-95"
+                style={{ animation: 'slide-up 0.5s ease-out 0.5s backwards' }}
               >
                 CONTINUE TO RADIO
               </Button>
@@ -79,11 +80,11 @@ function App() {
           />
 
           {!isOnline && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-sm z-50">
+            <div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-sm z-50" style={{ animation: 'fade-in 0.3s ease-out' }}>
               <div className="text-center space-y-4 p-8">
-                <div className="text-6xl animate-pulse">📻</div>
-                <h2 className="text-2xl font-bold text-foreground">NO SIGNAL</h2>
-                <p className="text-muted-foreground font-mono text-sm">Check antenna connection</p>
+                <div className="text-6xl" style={{ animation: 'float 3s ease-in-out infinite' }}>📻</div>
+                <h2 className="text-2xl font-bold text-foreground" style={{ animation: 'slide-down 0.5s ease-out 0.1s backwards' }}>NO SIGNAL</h2>
+                <p className="text-muted-foreground font-mono text-sm" style={{ animation: 'fade-in 0.5s ease-out 0.2s backwards' }}>Check antenna connection</p>
               </div>
             </div>
           )}

@@ -106,10 +106,10 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
 
   return (
     <div className="relative flex items-center justify-center min-h-screen w-full bg-gradient-to-br from-background via-background to-muted p-8">
-      <div className="relative w-full max-w-2xl">
+      <div className="relative w-full max-w-2xl" style={{ animation: 'scale-in 0.6s ease-out' }}>
         <div className="wood-grain rounded-3xl p-12 shadow-2xl border-8 border-card">
           <div className="space-y-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between" style={{ animation: 'slide-down 0.4s ease-out 0.1s backwards' }}>
               <Badge variant="secondary" className="text-xs font-mono">
                 FM • 107.9 MHz
               </Badge>
@@ -117,13 +117,13 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
                 size="sm"
                 variant="destructive"
                 onClick={handlePowerOff}
-                className="rounded-full h-8 w-8 p-0 bg-destructive/80 hover:bg-destructive"
+                className="rounded-full h-8 w-8 p-0 bg-destructive/80 hover:bg-destructive transition-all hover:scale-110 active:scale-90"
               >
                 <Power size={16} weight="bold" />
               </Button>
             </div>
 
-            <div className="speaker-grill rounded-2xl p-6 flex items-center justify-center border-4 border-muted/50">
+            <div className="speaker-grill rounded-2xl p-6 flex items-center justify-center border-4 border-muted/50 transition-all hover:border-primary/30" style={{ animation: 'scale-in 0.5s ease-out 0.2s backwards' }}>
               <TrackDisplay 
                 trackInfo={ytMusic.trackInfo}
                 lyrics={ytMusic.lyrics}
@@ -133,7 +133,7 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
               />
             </div>
 
-            <div className="grid grid-cols-5 gap-4 items-center">
+            <div className="grid grid-cols-5 gap-4 items-center" style={{ animation: 'slide-up 0.5s ease-out 0.3s backwards' }}>
               <div className="flex flex-col items-center gap-3">
                 <Button
                   size="lg"
@@ -201,11 +201,11 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
                 <div className="relative">
                   <div
                     id="volume-knob"
-                    className="brass-knob h-20 w-20 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center transition-shadow hover:shadow-xl"
+                    className="brass-knob h-20 w-20 rounded-full cursor-grab active:cursor-grabbing flex items-center justify-center transition-all hover:shadow-2xl hover:scale-105 active:scale-95"
                     onMouseDown={handleKnobMouseDown}
                     style={{
-                      transform: `rotate(${knobRotation}deg)`,
-                      transition: isDraggingRef.current ? 'none' : 'transform 0.1s ease-out'
+                      transform: `rotate(${knobRotation}deg) ${isDraggingRef.current ? '' : 'scale(1)'}`,
+                      transition: isDraggingRef.current ? 'none' : 'transform 0.1s ease-out, box-shadow 0.2s ease-out'
                     }}
                   >
                     <div className="absolute top-1.5 h-1 w-5 bg-accent-foreground rounded-full"></div>
