@@ -12,12 +12,12 @@ This is a simplified radio-style player that automatically plays YouTube Music r
 
 ## Essential Features
 
-### 1. Radio Station Display
-- **Functionality**: Shows YouTube Music in a hidden/background iframe while displaying a vintage radio interface
-- **Purpose**: Provides the nostalgia of a physical radio while streaming modern music content
-- **Trigger**: Automatically loads on app launch
-- **Progression**: App launch → Load YouTube Music recommendations → Display vintage radio UI → Play automatically
-- **Success criteria**: Music starts playing with vintage radio interface visible
+### 1. Radio Station Display with Track Info
+- **Functionality**: Shows current song title, artist, and live lyrics in the vintage radio display
+- **Purpose**: Provides real-time feedback on what's playing while maintaining the nostalgic aesthetic
+- **Trigger**: Automatically updates when track changes in YouTube Music
+- **Progression**: Track changes → Extract metadata from YouTube Music → Display song title and artist → Show synchronized lyrics
+- **Success criteria**: Song information displays accurately with lyrics synchronized to playback
 
 ### 2. Previous/Next Track Buttons
 - **Functionality**: Large, tactile-looking buttons to skip to previous or next track

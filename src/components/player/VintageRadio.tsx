@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { TrackDisplay } from './TrackDisplay'
 
 interface VintageRadioProps {
   iframeRef: React.RefObject<HTMLIFrameElement | null>
@@ -138,17 +139,8 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
               </Button>
             </div>
 
-            <div className="speaker-grill rounded-2xl h-32 flex items-center justify-center border-4 border-muted/50">
-              <div className="text-center space-y-1">
-                <div className="text-xs font-mono text-muted-foreground tracking-widest">
-                  NOW PLAYING
-                </div>
-                <div className={`amber-glow rounded-lg px-6 py-3 transition-opacity ${isChangingTrack ? 'opacity-50' : 'opacity-100'}`}>
-                  <div className="text-lg font-bold text-accent-foreground tracking-wide">
-                    {isChangingTrack ? 'TUNING...' : 'YOUTUBE MUSIC'}
-                  </div>
-                </div>
-              </div>
+            <div className="speaker-grill rounded-2xl p-6 flex items-center justify-center border-4 border-muted/50">
+              <TrackDisplay isChangingTrack={isChangingTrack} />
             </div>
 
             <div className="grid grid-cols-3 gap-8 items-center">
@@ -213,11 +205,6 @@ export function VintageRadio({ iframeRef, onExit }: VintageRadioProps) {
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-          <div className="h-3 w-3 rounded-full bg-card shadow-inner"></div>
-          <div className="h-3 w-3 rounded-full bg-card shadow-inner"></div>
         </div>
       </div>
     </div>
