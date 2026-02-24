@@ -1,14 +1,14 @@
 {
-  "name": "vintage-radio-electron",
+  "name": "tunebox-electron",
   "version": "1.0.0",
-  "description": "Vintage Radio - YouTube Music Desktop App",
+  "description": "Tunebox - YouTube Music Desktop App",
   "author": {
     "name": "domchan",
     "email": "domchan@users.noreply.github.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/domchan/youtube-music-deskto.git"
+    "url": "https://github.com/domchan/tunebox.git"
   },
   "main": "main.js",
   "scripts": {
@@ -19,8 +19,13 @@
     "package:all": "electron-builder -mwl --publish never"
   },
   "build": {
-    "appId": "com.vintageradio.app",
-    "productName": "Vintage Radio",
+    "appId": "com.tunebox.app",
+    "productName": "Tunebox",
+    "compression": "maximum",
+    "asar": true,
+    "electronLanguages": [
+      "en-US"
+    ],
     "directories": {
       "output": "dist",
       "buildResources": "../build"
@@ -30,14 +35,8 @@
       "preload.js",
       "ytmusic-control.js",
       "../dist/**/*",
+      "!../dist/**/*.map",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../dist",
-        "to": "dist",
-        "filter": ["**/*"]
-      }
     ],
     "mac": {
       "category": "public.app-category.music",
@@ -93,7 +92,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Vintage Radio"
+      "shortcutName": "Tunebox"
     },
     "publish": []
   },

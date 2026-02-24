@@ -47,7 +47,7 @@ function svgToPng(src, dest, size) {
   return false
 }
 
-console.log('\n📐 Building Vintage Radio icons...\n')
+console.log('\n📐 Building Tunebox icons...\n')
 
 // 1. Generate master 1024×1024 PNG
 const master = path.join(TMP, 'master.png')

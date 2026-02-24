@@ -125,6 +125,28 @@ function setupYouTubeSessionHeaderCapture() {
   })
 }
 
+function resolveRendererEntry() {
+  const devUrl = process.env.ELECTRON_START_URL || 'http://localhost:5173'
+
+  if (!app.isPackaged) {
+    return { type: 'url', value: devUrl }
+  }
+
+  const candidates = [
+    path.join(__dirname, '..', 'dist', 'index.html'),
+    path.join(process.resourcesPath, 'app.asar', 'dist', 'index.html'),
+    path.join(process.resourcesPath, 'dist', 'index.html')
+  ]
+
+  for (const filePath of candidates) {
+    if (fs.existsSync(filePath)) {
+      return { type: 'file', value: filePath }
+    }
+  }
+
+  return { type: 'url', value: devUrl }
+}
+
 function createWindow() {
   const appIconPath = resolveAppIconPath()
 
@@ -150,9 +172,13 @@ function createWindow() {
     icon: appIconPath
   })
 
-  const startUrl = process.env.ELECTRON_START_URL || `http://localhost:5000`
-  
-  mainWindow.loadURL(startUrl)
+  const rendererEntry = resolveRendererEntry()
+
+  if (rendererEntry.type === 'file') {
+    mainWindow.loadFile(rendererEntry.value)
+  } else {
+    mainWindow.loadURL(rendererEntry.value)
+  }
 
   if (process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools()

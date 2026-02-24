@@ -76,7 +76,7 @@ jobs:
           prerelease: false
           name: Release v${{ steps.package_version.outputs.version }}
           body: |
-            Vintage Radio - YouTube Music Desktop App
+            Tunebox - YouTube Music Desktop App
             
             Version: ${{ steps.package_version.outputs.version }}
             
@@ -89,7 +89,7 @@ jobs:
             1. Download the appropriate file for your platform
             2. Install/run the application
             3. Sign in to YouTube Music when prompted
-            4. Enjoy your vintage radio experience!
+            4. Enjoy your music experience!
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
