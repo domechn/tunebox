@@ -22,6 +22,13 @@ export interface PlaybackState {
   volume: number
 }
 
+export interface RecommendedTrack {
+  title: string
+  artist?: string
+  url?: string
+  thumbnail?: string
+}
+
 export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>) {
   const [trackInfo, setTrackInfo] = useState<TrackInfo>({
     title: 'YouTube Music',
@@ -33,8 +40,7 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     duration: 0,
     volume: 70
   })
-  const [lyrics, setLyrics] = useState<string[]>([])
-  const [currentLyric, setCurrentLyric] = useState('')
+  const [recommendedTracks, setRecommendedTracks] = useState<RecommendedTrack[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [webviewReady, setWebviewReady] = useState(false)
 
@@ -74,9 +80,9 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     }
 
     try {
-      if (typeof target.executeJavaScript === 'function') {
+      if (typeof (target as WebviewLikeElement).executeJavaScript === 'function') {
         const serialized = JSON.stringify(payload)
-        target.executeJavaScript(`window.postMessage(${serialized}, '*')`)
+        ;(target as WebviewLikeElement).executeJavaScript!(`window.postMessage(${serialized}, '*')`)
         return
       }
 
@@ -155,6 +161,33 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
           })
           setIsConnected(true)
         }
+
+        if (Array.isArray(state.recommendedTracks)) {
+          const tracks = state.recommendedTracks
+            .filter((item: unknown) => {
+              if (!item || typeof item !== 'object') return false
+              const candidate = item as { title?: unknown }
+              return typeof candidate.title === 'string' && candidate.title.trim().length > 0
+            })
+            .map((item: unknown) => {
+              const candidate = item as {
+                title: string
+                artist?: unknown
+                url?: unknown
+                thumbnail?: unknown
+              }
+
+              return {
+                title: candidate.title,
+                artist: typeof candidate.artist === 'string' ? candidate.artist : undefined,
+                url: typeof candidate.url === 'string' ? candidate.url : undefined,
+                thumbnail: typeof candidate.thumbnail === 'string' ? candidate.thumbnail : undefined
+              }
+            })
+
+          setRecommendedTracks(tracks)
+        }
+
         setPlaybackState(prev => {
           if (trackChanged) {
             return {
@@ -171,10 +204,6 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
             duration: state.duration ?? prev.duration
           }
         })
-        if (state.lyrics) {
-          setLyrics(state.lyrics.split('\n').filter((l: string) => l.trim()))
-        }
-        setCurrentLyric(state.currentLyric || '')
       })
       return () => { unsub?.() }
     }
@@ -204,14 +233,6 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
           }))
           break
 
-        case 'ytmusic-lyrics': {
-          const lyricsArray = event.data.lyrics
-            ? event.data.lyrics.split('\n').filter((line: string) => line.trim())
-            : []
-          setLyrics(lyricsArray)
-          break
-        }
-
         case 'ytmusic-connection':
           setIsConnected(event.data.connected)
           break
@@ -222,23 +243,10 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     return () => window.removeEventListener('message', handleMessage)
   }, [])
 
-  // Resolve the current lyric line: prefer synced currentLyric from DOM,
-  // fall back to linear estimation from lyrics array
-  const currentLyricText = useMemo(() => {
-    if (currentLyric) return currentLyric
-    if (lyrics.length > 0 && playbackState.duration > 0) {
-      const progress = playbackState.currentTime / playbackState.duration
-      const index = Math.min(Math.floor(progress * lyrics.length), lyrics.length - 1)
-      return lyrics[index] || ''
-    }
-    return ''
-  }, [currentLyric, lyrics, playbackState.currentTime, playbackState.duration])
-
   return {
     trackInfo,
     playbackState,
-    lyrics,
-    currentLyricText,
+    recommendedTracks,
     isConnected,
     play,
     pause,

@@ -6,7 +6,9 @@
     "scripts": {
         "dev": "vite",
         "kill": "fuser -k 5000/tcp",
+        "icons:build": "node scripts/build-icons.cjs",
         "build": "tsc -b --noCheck && vite build",
+        "package:mac": "npm run icons:build && npm run build && cd electron && npm run package:mac",
         "lint": "eslint .",
         "optimize": "vite optimize",
         "preview": "vite preview"

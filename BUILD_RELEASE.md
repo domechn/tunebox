@@ -20,6 +20,11 @@ The application version is managed in the root `package.json` file. Update the v
 
 ### Development Build
 
+0. Generate desktop icons (recommended after changing `build/icon.svg`):
+```bash
+npm run icons:build
+```
+
 1. Build the web app:
 ```bash
 npm install
@@ -35,6 +40,11 @@ npm install
 3. Package for your platform:
 
 **macOS:**
+```bash
+npm run package:mac
+```
+
+Or run from project root (includes icon generation + web build):
 ```bash
 npm run package:mac
 ```

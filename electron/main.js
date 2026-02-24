@@ -11,6 +11,22 @@ const YTMUSIC_PARTITION = 'persist:youtube-music'
 const AUTH_HEADER_FILE = 'ytmusic-auth.json'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
+function resolveAppIconPath() {
+  const ext = process.platform === 'win32' ? 'ico' : 'png'
+  const candidates = [
+    path.join(__dirname, '..', 'build', `icon.${ext}`),
+    path.join(process.resourcesPath, 'build', `icon.${ext}`)
+  ]
+
+  for (const iconPath of candidates) {
+    if (fs.existsSync(iconPath)) {
+      return iconPath
+    }
+  }
+
+  return undefined
+}
+
 function getAuthFilePath() {
   return path.join(app.getPath('userData'), AUTH_HEADER_FILE)
 }
@@ -32,6 +48,28 @@ function readStoredAuth() {
 function persistAuthHeaders(payload) {
   const filePath = getAuthFilePath()
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8')
+}
+
+function isStoredAuthFresh(stored, maxAgeMs = 1000 * 60 * 60 * 12) {
+  if (!stored?.capturedAt) return false
+  const capturedAtMs = Date.parse(stored.capturedAt)
+  if (Number.isNaN(capturedAtMs)) return false
+  return Date.now() - capturedAtMs <= maxAgeMs
+}
+
+async function hasYouTubeSessionCookies() {
+  try {
+    const ytSession = session.fromPartition(YTMUSIC_PARTITION)
+    const cookies = await ytSession.cookies.get({ url: YTMUSIC_URL })
+    const cookieNames = new Set(cookies.map((cookie) => cookie.name))
+    return (
+      cookieNames.has('SAPISID') ||
+      cookieNames.has('__Secure-3PAPISID') ||
+      cookieNames.has('SID')
+    )
+  } catch {
+    return false
+  }
 }
 
 function setupYouTubeSessionHeaderCapture() {
@@ -69,6 +107,10 @@ function setupYouTubeSessionHeaderCapture() {
           }
           persistAuthHeaders(payload)
 
+          if (loginWindow && !loginWindow.isDestroyed()) {
+            loginWindow.close()
+          }
+
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('ytmusic-auth-updated', {
               ready: true,
@@ -84,6 +126,8 @@ function setupYouTubeSessionHeaderCapture() {
 }
 
 function createWindow() {
+  const appIconPath = resolveAppIconPath()
+
   mainWindow = new BrowserWindow({
     width: 260,
     height: 520,
@@ -102,7 +146,8 @@ function createWindow() {
     },
     title: 'Music Player',
     autoHideMenuBar: true,
-    resizable: false
+    resizable: false,
+    icon: appIconPath
   })
 
   const startUrl = process.env.ELECTRON_START_URL || `http://localhost:5000`
@@ -155,29 +200,63 @@ function createWindow() {
                     thumbEl = wrapper.querySelector('img') || wrapper;
                   }
                 }
-                var lyricsEl = document.querySelector('.description.ytmusic-description-shelf-renderer')
-                            || document.querySelector('ytmusic-description-shelf-renderer .description')
-                            || document.querySelector('#contents .description')
-                            || document.querySelector('[class*="description-shelf"] .description');
+                var isPlaying = video ? !video.paused : false;
+                var ct = 0;
+                var dur = 0;
+                var progressBar = document.querySelector('#progress-bar') || document.querySelector('ytmusic-player-bar tp-yt-paper-slider');
+                if (progressBar) {
+                  ct = parseFloat(progressBar.getAttribute('value') || '0');
+                  dur = parseFloat(progressBar.getAttribute('aria-valuemax') || '0');
+                } else if (video) {
+                  ct = isFinite(video.currentTime) ? video.currentTime : 0;
+                  dur = isFinite(video.duration) ? video.duration : 0;
+                }
 
-                // Detect currently active/synced lyric line
-                var currentLyric = '';
-                // Method 1: Video text tracks (synced lyrics/captions)
-                if (video && video.textTracks) {
-                  for (var t = 0; t < video.textTracks.length; t++) {
-                    var track = video.textTracks[t];
-                    if (track.mode === 'disabled') track.mode = 'hidden';
-                    if (track.activeCues && track.activeCues.length > 0) {
-                      currentLyric = track.activeCues[0].text || '';
-                      currentLyric = currentLyric.replace(/<[^>]*>/g, '').trim();
-                      if (currentLyric) break;
-                    }
+                var normalized = function(text) {
+                  return (text || '').replace(/\s+/g, '').toLowerCase();
+                };
+
+                var guessYouLikeNames = ['猜你喜欢', 'for you', 'recommended for you', 'mixed for you'];
+                var isGuessYouLikeTitle = function(text) {
+                  var normalizedText = normalized(text);
+                  if (!normalizedText) return false;
+                  return guessYouLikeNames.some(function(name) {
+                    return normalizedText.indexOf(normalized(name)) !== -1;
+                  });
+                };
+
+                var pickText = function(el) {
+                  return el ? (el.textContent || '').trim() : '';
+                };
+
+                var shelf = null;
+                var shelfTitles = Array.from(document.querySelectorAll('ytmusic-shelf-renderer h2, ytmusic-shelf-renderer .title, ytmusic-carousel-shelf-renderer h2, ytmusic-carousel-shelf-renderer .title'));
+                for (var i = 0; i < shelfTitles.length; i++) {
+                  if (isGuessYouLikeTitle(shelfTitles[i].textContent)) {
+                    shelf = shelfTitles[i].closest('ytmusic-shelf-renderer, ytmusic-carousel-shelf-renderer');
+                    if (shelf) break;
                   }
                 }
 
-                var isPlaying = video ? !video.paused : false;
-                var ct = (video && isFinite(video.currentTime)) ? video.currentTime : 0;
-                var dur = (video && isFinite(video.duration)) ? video.duration : 0;
+                var recommendedTracks = [];
+                if (shelf) {
+                  var items = Array.from(shelf.querySelectorAll('ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer'));
+                  for (var j = 0; j < items.length; j++) {
+                    var item = items[j];
+                    var itemTitle = pickText(item.querySelector('#title, .title, yt-formatted-string.title'));
+                    var itemArtist = pickText(item.querySelector('#subtitle, .subtitle, .byline, yt-formatted-string.subtitle'));
+                    var itemLink = item.querySelector('a[href*="watch"], a[href*="playlist"], a[href]');
+                    var itemThumb = item.querySelector('img');
+
+                    if (!itemTitle) continue;
+                    recommendedTracks.push({
+                      title: itemTitle,
+                      artist: itemArtist,
+                      url: itemLink ? itemLink.href : '',
+                      thumbnail: itemThumb ? (itemThumb.src || '') : ''
+                    });
+                  }
+                }
 
                 var stateObj = {
                   title:     titleEl  ? titleEl.textContent.trim()  : '',
@@ -186,8 +265,7 @@ function createWindow() {
                   isPlaying: isPlaying,
                   currentTime: ct,
                   duration: dur,
-                  lyrics: lyricsEl ? lyricsEl.innerText : '',
-                  currentLyric: currentLyric
+                  recommendedTracks: recommendedTracks
                 };
                 console.log('YTMusic State:', stateObj);
                 return stateObj;
@@ -197,40 +275,6 @@ function createWindow() {
           if (state && mainWindow && !mainWindow.isDestroyed()) {
             // console.log('YTMusic State:', state);
             mainWindow.webContents.send('ytmusic-state', state)
-
-            // When track changes, try to activate the Lyrics tab
-            if (state.title && state.title !== lastPollTitle) {
-              lastPollTitle = state.title
-              lyricsActivated = false
-            }
-            if (!lyricsActivated && state.title) {
-              try {
-                const clicked = await webContents.executeJavaScript(`
-                  (function() {
-                    // Try multiple selectors for the Lyrics tab
-                    var selectors = [
-                      'tp-yt-paper-tab',
-                      'yt-tab-shape',
-                      '[role="tab"]',
-                      'ytmusic-player-page .tab-header paper-tab',
-                      '.tab-header [role="tab"]'
-                    ];
-                    for (var s = 0; s < selectors.length; s++) {
-                      var tabs = document.querySelectorAll(selectors[s]);
-                      for (var i = 0; i < tabs.length; i++) {
-                        var text = tabs[i].textContent.trim().toUpperCase();
-                        if (text.indexOf('LYRICS') !== -1 || text.indexOf('歌词') !== -1) {
-                          tabs[i].click();
-                          return true;
-                        }
-                      }
-                    }
-                    return false;
-                  })()
-                `)
-                if (clicked) lyricsActivated = true
-              } catch (_) {}
-            }
           }
         } catch (_) { /* page navigating or destroyed */ }
       }, 1000)
@@ -288,10 +332,24 @@ function openLoginWindow() {
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle('ytmusic-auth:get-state', () => {
+  ipcMain.handle('ytmusic-auth:get-state', async () => {
     const stored = readStoredAuth()
+    const storedReady = Boolean(stored?.headers?.authorization && stored?.headers?.cookie)
+    const fresh = isStoredAuthFresh(stored)
+    const sessionReady = await hasYouTubeSessionCookies()
+    const ready = storedReady && fresh && sessionReady
+
+    if (!ready && stored && !sessionReady) {
+      try {
+        const filePath = getAuthFilePath()
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath)
+        }
+      } catch (_) {}
+    }
+
     return {
-      ready: Boolean(stored?.headers?.authorization && stored?.headers?.cookie),
+      ready,
       capturedAt: stored?.capturedAt || null
     }
   })
@@ -411,6 +469,11 @@ function registerIpcHandlers() {
 }
 
 app.whenReady().then(() => {
+  const appIconPath = resolveAppIconPath()
+  if (process.platform === 'darwin' && app.dock && appIconPath) {
+    app.dock.setIcon(appIconPath)
+  }
+
   setupYouTubeSessionHeaderCapture()
   registerIpcHandlers()
   createWindow()

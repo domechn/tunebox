@@ -28,7 +28,7 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
   const progressTrackRef = useRef<HTMLDivElement>(null)
 
   const ytMusic = useYouTubeMusic(playerRef)
-  const { setVolume: ytSetVolume, trackInfo, playbackState, currentLyricText } = ytMusic
+  const { setVolume: ytSetVolume, trackInfo, playbackState } = ytMusic
   const [imageError, setImageError] = useState(false)
 
   useEffect(() => { setImageError(false) }, [trackInfo.thumbnail])
@@ -134,12 +134,6 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
     <div
       className="player-shell"
     >
-      {/* Corner screws */}
-      <div className="screw screw-tl" />
-      <div className="screw screw-tr" />
-      <div className="screw screw-bl" />
-      <div className="screw screw-br" />
-
       {/* Top Bar with physical buttons and drag handle */}
       <div className="top-bar">
         <button className="physical-btn" onClick={onLogout} title="Sign out">
@@ -167,7 +161,7 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="album-art-empty">
+            <div className={`album-art-empty ${isChangingTrack ? 'changing' : ''}`}>
               <span>♪</span>
             </div>
           )}
@@ -199,23 +193,6 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
             <span>{formatTime(playbackState.currentTime)}</span>
             <span>{formatTime(playbackState.duration)}</span>
           </div>
-        </div>
-
-        {/* Current lyric line */}
-        <div className="lyrics-box">
-          {currentLyricText && !isChangingTrack ? (
-            <div className="lyrics-single">
-              <MarqueeText
-                text={currentLyricText}
-                className="lyric-active"
-                speed={0.15}
-              />
-            </div>
-          ) : (
-            <div className="lyrics-empty">
-              {isChangingTrack ? '...' : '♪  No lyrics available'}
-            </div>
-          )}
         </div>
       </div>
 

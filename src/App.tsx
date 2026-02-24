@@ -143,7 +143,7 @@ function App() {
         <>
           {isElectron ? (
             <webview
-              ref={playerRef}
+              ref={playerRef as React.RefObject<HTMLWebViewElement>}
               src={YOUTUBE_MUSIC_URL}
               className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
               partition="persist:youtube-music"
@@ -152,7 +152,7 @@ function App() {
             />
           ) : (
             <iframe
-              ref={playerRef}
+              ref={playerRef as React.RefObject<HTMLIFrameElement>}
               src={YOUTUBE_MUSIC_URL}
               className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
               title="YouTube Music"

@@ -46,26 +46,11 @@ function setupYouTubeMusicControls() {
     let duration = 0
     
     if (progressBar) {
-      const value = parseFloat(progressBar.getAttribute('value') || '0')
+      currentTime = parseFloat(progressBar.getAttribute('value') || '0')
       duration = parseFloat(progressBar.getAttribute('aria-valuemax') || '0')
-      currentTime = (value / 100) * duration
     }
 
     return { isPlaying, currentTime, duration }
-  }
-
-  async function getLyrics() {
-    const lyricsButton = await findElement('ytmusic-tab-renderer[tab-title="Lyrics"]')
-    if (lyricsButton && !lyricsButton.classList.contains('iron-selected')) {
-      lyricsButton.click()
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-
-    const lyricsContainer = await findElement('.description.ytmusic-description-shelf-renderer')
-    if (lyricsContainer) {
-      return lyricsContainer.innerText
-    }
-    return ''
   }
 
   async function clickButton(selector) {
@@ -128,14 +113,6 @@ function setupYouTubeMusicControls() {
         window.parent.postMessage({
           type: 'ytmusic-track-info',
           ...trackInfo
-        }, '*')
-        break
-
-      case 'getLyrics':
-        const lyrics = await getLyrics()
-        window.parent.postMessage({
-          type: 'ytmusic-lyrics',
-          lyrics
         }, '*')
         break
     }
