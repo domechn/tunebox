@@ -34,9 +34,17 @@
       "main.js",
       "preload.js",
       "ytmusic-control.js",
-      "../dist/**/*",
-      "!../dist/**/*.map",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "dist",
+        "filter": [
+          "**/*",
+          "!**/*.map"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.music",
