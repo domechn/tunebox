@@ -2,7 +2,10 @@
   "name": "vintage-radio-electron",
   "version": "1.0.0",
   "description": "Vintage Radio - YouTube Music Desktop App",
-  "author": "domchan",
+  "author": {
+    "name": "domchan",
+    "email": "domchan@users.noreply.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/domchan/youtube-music-deskto.git"
@@ -67,6 +70,7 @@
     },
     "linux": {
       "icon": "icon.png",
+      "maintainer": "domchan <domchan@users.noreply.github.com>",
       "target": [
         {
           "target": "AppImage",
