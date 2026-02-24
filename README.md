@@ -14,6 +14,14 @@ A vintage-styled desktop music player for YouTube Music, featuring a retro 1960s
 - **Session Persistence** - Remembers login state and volume across restarts
 - **Offline Detection** - Shows a "No Connection" screen when the network drops
 
+## Screenshots
+
+<img width="372" height="632" alt="image" src="https://github.com/user-attachments/assets/4de225f4-1136-41a0-923a-b717f5c37de6" />
+
+
+<img width="372" height="632" alt="image" src="https://github.com/user-attachments/assets/4407016f-f131-4829-93a1-cef120bc7539" />
+
+
 ## Getting Started
 
 ### Prerequisites
