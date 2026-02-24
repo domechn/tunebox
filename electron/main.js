@@ -1033,9 +1033,9 @@ function registerIpcHandlers() {
                   var watchPath = '/watch?v=' + videoId;
                   var fullUrl = 'https://music.youtube.com' + watchPath;
 
-                  // Clear flags
+                  // Clear flags and hold playback muted until our navigation finishes
                   window.__tuneboxVideoEnded = false;
-                  window.__tuneboxAwaitingOurNavigation = false;
+                  window.__tuneboxAwaitingOurNavigation = true;
                   window.__tuneboxIgnoreEndedUntil = Date.now() + 4000;
 
                   // Mute + pause current playback during transition.
@@ -1075,11 +1075,15 @@ function registerIpcHandlers() {
 
                     // Success: playback has started
                     if (vid && !vid.paused) {
+                      window.__tuneboxAwaitingOurNavigation = false;
                       vid.muted = false;
                       return;
                     }
 
                     if (vid) {
+                      if (vid.readyState >= 1) {
+                        window.__tuneboxAwaitingOurNavigation = false;
+                      }
                       // Force play once video has enough data
                       if (vid.readyState >= 2) {
                         vid.muted = false;
@@ -1111,11 +1115,11 @@ function registerIpcHandlers() {
                     if (window.__tuneboxPlaySerial !== ${mySerial}) return;
                     var vid = document.querySelector('video');
                     if (vid && vid.paused) {
-                      window.__tuneboxAwaitingOurNavigation = false;
-                      vid.muted = false;
-                      vid.play().catch(function() {});
-                      var pb = document.querySelector('#play-pause-button');
-                      if (pb) { pb.click(); }
+                        window.__tuneboxAwaitingOurNavigation = false;
+                        vid.muted = false;
+                        vid.play().catch(function() {});
+                        var pb = document.querySelector('#play-pause-button');
+                        if (pb) { pb.click(); }
                     }
                   }, 2500);
                 })()
