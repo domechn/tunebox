@@ -108,7 +108,8 @@ function App() {
 
           {/* Top Bar */}
           <div className="top-bar">
-            <div className="app-brand" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
+            <div style={{ width: 26 }}></div>
+            <div className="app-brand">
               <span className="app-brand-text">TuneBox</span>
             </div>
             <button className="physical-btn physical-btn-danger" onClick={handleExit} title="Quit">
@@ -117,7 +118,7 @@ function App() {
           </div>
 
           {/* Screen Area */}
-          <div className="screen-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+          <div className="screen-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, paddingBottom: '80px' }}>
             <div className="login-card">
               <div className="login-icon">🎵</div>
               <h1 className="login-title">MUSIC PLAYER</h1>

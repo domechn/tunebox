@@ -34,6 +34,8 @@
       "main.js",
       "preload.js",
       "ytmusic-control.js",
+      "!**/node_modules/**",
+      "!../node_modules/**",
       "package.json"
     ],
     "extraResources": [
@@ -45,7 +47,7 @@
           "!**/*.map"
         ]
       }
-    ],
+        ],
     "mac": {
       "category": "public.app-category.music",
       "icon": "icon.icns",
