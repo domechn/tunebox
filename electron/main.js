@@ -10,12 +10,40 @@ let activeExtraWin = null       // Hidden BrowserWindow currently playing (after
 let preloadWin = null           // Hidden BrowserWindow preloading next track
 let preloadUrl = null           // URL being preloaded
 let preloadReady = false        // Preload video is buffered and paused
+let preloadSerial = 0           // Monotonic counter to invalidate stale preload callbacks
+let preloadProbeTimer = null    // Single active preload readiness probe timer
 let lastKnownVolume = 0.7      // Last setVolume value (0-1), for preload window setup
+let playTrackSerial = 0         // Monotonic counter to cancel stale play-polls
+
+function getActivePlaybackWebContents() {
+  if (activeExtraWin && !activeExtraWin.isDestroyed() && activeExtraWin.webContents && !activeExtraWin.webContents.isDestroyed()) {
+    return activeExtraWin.webContents
+  }
+  if (ytWebContents && !ytWebContents.isDestroyed()) {
+    return ytWebContents
+  }
+  return null
+}
 
 const YTMUSIC_URL = 'https://music.youtube.com'
 const YTMUSIC_PARTITION = 'persist:youtube-music'
 const AUTH_HEADER_FILE = 'ytmusic-auth.json'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+const ENABLE_PLAYBACK_DIAGNOSTICS = process.env.NODE_ENV === 'development'
+
+function diagLog(event, payload = {}) {
+  if (!ENABLE_PLAYBACK_DIAGNOSTICS) return
+  const ts = new Date().toISOString()
+  try {
+    console.log(`[TuneBoxDiag][${ts}] ${event}`, payload)
+  } catch (_) {}
+}
+
+// Disable Chromium autoplay restrictions globally.
+// Without this, video.play() called from executeJavaScript (which is NOT
+// a user gesture) can be silently rejected by Chrome's autoplay policy,
+// causing songs to stay paused after switching tracks.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 function resolveAppIconPath() {
   const ext = process.platform === 'win32' ? 'ico' : 'png'
@@ -164,23 +192,112 @@ function createHiddenPlaybackWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       partition: YTMUSIC_PARTITION,
-      webSecurity: true
+      webSecurity: true,
+      autoplayPolicy: 'no-user-gesture-required'
     }
   })
   win.webContents.setUserAgent(USER_AGENT)
   return win
 }
 
+function silenceWebContents(wc) {
+  if (!wc || wc.isDestroyed()) return
+  try {
+    wc.setAudioMuted(true)
+    wc.executeJavaScript(`
+      (function() {
+        var v = document.querySelector('video');
+        if (v) {
+          v.muted = true;
+          try { v.pause(); } catch (_) {}
+        }
+      })()
+    `).catch(() => {})
+  } catch (_) {}
+}
+
+function enforceSingleActivePlayback(activeWc) {
+  diagLog('enforceSingleActivePlayback', {
+    activeId: activeWc && !activeWc.isDestroyed() ? activeWc.id : null,
+    ytId: ytWebContents && !ytWebContents.isDestroyed() ? ytWebContents.id : null,
+    webviewId: webviewWebContents && !webviewWebContents.isDestroyed() ? webviewWebContents.id : null,
+    activeExtraId: activeExtraWin && !activeExtraWin.isDestroyed() && activeExtraWin.webContents && !activeExtraWin.webContents.isDestroyed()
+      ? activeExtraWin.webContents.id
+      : null,
+    preloadId: preloadWin && !preloadWin.isDestroyed() && preloadWin.webContents && !preloadWin.webContents.isDestroyed()
+      ? preloadWin.webContents.id
+      : null
+  })
+  const candidates = [
+    ytWebContents,
+    webviewWebContents,
+    activeExtraWin && !activeExtraWin.isDestroyed() ? activeExtraWin.webContents : null,
+    preloadWin && !preloadWin.isDestroyed() ? preloadWin.webContents : null
+  ]
+
+  const seen = new Set()
+  for (const wc of candidates) {
+    if (!wc || wc.isDestroyed()) continue
+    if (seen.has(wc.id)) continue
+    seen.add(wc.id)
+
+    if (activeWc && wc.id === activeWc.id) {
+      try { wc.setAudioMuted(false) } catch (_) {}
+      continue
+    }
+
+    silenceWebContents(wc)
+  }
+}
+
+function pauseAllKnownPlaybackSources() {
+  diagLog('pauseAllKnownPlaybackSources:start')
+  const candidates = [
+    ytWebContents,
+    webviewWebContents,
+    activeExtraWin && !activeExtraWin.isDestroyed() ? activeExtraWin.webContents : null,
+    preloadWin && !preloadWin.isDestroyed() ? preloadWin.webContents : null
+  ]
+
+  const seen = new Set()
+  for (const wc of candidates) {
+    if (!wc || wc.isDestroyed()) continue
+    if (seen.has(wc.id)) continue
+    seen.add(wc.id)
+
+    try {
+      diagLog('pauseAllKnownPlaybackSources:pausingWc', { wcId: wc.id })
+      wc.setAudioMuted(true)
+      wc.executeJavaScript(`
+        (function() {
+          window.__tuneboxAwaitingOurNavigation = false;
+          var v = document.querySelector('video');
+          if (v) {
+            v.muted = true;
+            try { v.pause(); } catch (_) {}
+          }
+        })()
+      `).catch(() => {})
+    } catch (_) {}
+  }
+  diagLog('pauseAllKnownPlaybackSources:done')
+}
+
 // Inject control scripts + volume interception + video event listeners into a webContents.
 // Called on the renderer's webview (dom-ready) and on preload windows.
-function setupPlaybackScripts(wc) {
+// initialVolume: 0-1 float, used to pre-seed __tuneboxDesiredVolume so volume enforcement
+// kicks in immediately (before the first explicit setVolume command arrives).
+function setupPlaybackScripts(wc, initialVolume) {
   const controlScript = fs.readFileSync(path.join(__dirname, 'ytmusic-control.js'), 'utf8')
   wc.executeJavaScript(controlScript)
 
+  const seedVolume = (typeof initialVolume === 'number') ? initialVolume : null
+
   wc.executeJavaScript(`
     (function() {
-      if (typeof window.__tuneboxDesiredVolume === 'undefined') {
-        window.__tuneboxDesiredVolume = null;
+      var seedVol = ${JSON.stringify(seedVolume)};
+      if (typeof window.__tuneboxDesiredVolume === 'undefined' || window.__tuneboxDesiredVolume === null) {
+        window.__tuneboxDesiredVolume = seedVol;
       }
       if (typeof window.__tuneboxSelfSetting === 'undefined') {
         window.__tuneboxSelfSetting = false;
@@ -205,19 +322,77 @@ function setupPlaybackScripts(wc) {
         window.__tuneboxSelfSetting = true;
         try { video.volume = window.__tuneboxDesiredVolume; } finally { window.__tuneboxSelfSetting = false; }
       }
+      if (typeof window.__tuneboxAwaitingOurNavigation === 'undefined') {
+        window.__tuneboxAwaitingOurNavigation = false;
+      }
+      if (typeof window.__tuneboxIgnoreEndedUntil === 'undefined') {
+        window.__tuneboxIgnoreEndedUntil = 0;
+      }
       function setupVideoListeners() {
         var video = document.querySelector('video');
         if (!video) return;
+        // If we're awaiting our own navigation command, keep any video silent
+        if (window.__tuneboxAwaitingOurNavigation) {
+          video.muted = true;
+          try { video.pause(); } catch(e) {}
+        }
         if (video.__tuneboxListenersSet) return;
         video.__tuneboxListenersSet = true;
-        video.addEventListener('ended', function() { window.__tuneboxVideoEnded = true; });
-        video.addEventListener('play', function() { window.__tuneboxVideoEnded = false; enforceVolume(video); });
-        video.addEventListener('loadeddata', function() { enforceVolume(video); });
-        video.addEventListener('canplay', function() { enforceVolume(video); });
+        video.addEventListener('ended', function() {
+          if (Date.now() < (window.__tuneboxIgnoreEndedUntil || 0)) {
+            return;
+          }
+          // Immediately mute & pause so YT Music's own autoplay queue
+          // cannot be heard while we wait for the IPC poll to fire.
+          video.muted = true;
+          video.pause();
+          window.__tuneboxVideoEnded = true;
+          window.__tuneboxAwaitingOurNavigation = true;
+          // Signal main process immediately (faster than polling)
+          console.log('__TUNEBOX_VIDEO_ENDED__');
+        });
+        video.addEventListener('play', function() {
+          if (window.__tuneboxAwaitingOurNavigation) {
+            // YT Music auto-advanced — suppress until our app navigates
+            video.muted = true;
+            try { video.pause(); } catch(e) {}
+            return;
+          }
+          window.__tuneboxVideoEnded = false;
+          video.muted = false;
+          enforceVolume(video);
+        });
+        video.addEventListener('loadstart', function() {
+          if (window.__tuneboxAwaitingOurNavigation) {
+            video.muted = true;
+          }
+        });
+        video.addEventListener('loadeddata', function() {
+          if (window.__tuneboxAwaitingOurNavigation) {
+            video.muted = true;
+            try { video.pause(); } catch(e) {}
+            return;
+          }
+          enforceVolume(video);
+        });
+        video.addEventListener('canplay', function() {
+          if (window.__tuneboxAwaitingOurNavigation) {
+            video.muted = true;
+            try { video.pause(); } catch(e) {}
+            return;
+          }
+          enforceVolume(video);
+        });
+        // Re-enforce volume whenever YT Music tries to change it
+        video.addEventListener('volumechange', function() {
+          if (!window.__tuneboxSelfSetting && window.__tuneboxDesiredVolume !== null && !window.__tuneboxAwaitingOurNavigation) {
+            enforceVolume(video);
+          }
+        });
         enforceVolume(video);
       }
       setupVideoListeners();
-      setInterval(setupVideoListeners, 3000);
+      setInterval(setupVideoListeners, 2000);
     })()
   `)
 }
@@ -239,6 +414,7 @@ function createWindow() {
       webSecurity: false,
       webviewTag: true,
       allowRunningInsecureContent: false,
+      autoplayPolicy: 'no-user-gesture-required',
       preload: path.join(__dirname, 'preload.js')
     },
     title: 'TuneBox',
@@ -262,8 +438,11 @@ function createWindow() {
   let activePollTimer = null
 
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
-    ytWebContents = webContents
+    diagLog('didAttachWebview', { wcId: webContents.id })
     webviewWebContents = webContents
+    if (!activeExtraWin || activeExtraWin.isDestroyed()) {
+      ytWebContents = webContents
+    }
     webContents.on('destroyed', () => {
       if (ytWebContents === webContents) ytWebContents = null
       if (webviewWebContents === webContents) webviewWebContents = null
@@ -275,7 +454,15 @@ function createWindow() {
         activePollTimer = null
       }
 
-      setupPlaybackScripts(webContents)
+      setupPlaybackScripts(webContents, lastKnownVolume)
+
+      // Fast path: detect videoEnded via console-message (near-instant, no polling delay)
+      webContents.on('console-message', (_event, _level, message) => {
+        if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
+          diagLog('videoEnded:consoleSignal', { wcId: webContents.id })
+          mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
+        }
+      })
 
       // Poll player state via executeJavaScript and forward to renderer over IPC.
       // window.parent.postMessage does NOT cross Electron's OOPIF process boundary,
@@ -287,9 +474,10 @@ function createWindow() {
           clearInterval(pollTimer)
           return
         }
-        if (!ytWebContents || ytWebContents.isDestroyed()) return
+        const activePlaybackWc = getActivePlaybackWebContents()
+        if (!activePlaybackWc || activePlaybackWc.isDestroyed()) return
         try {
-          const state = await ytWebContents.executeJavaScript(`
+          const state = await activePlaybackWc.executeJavaScript(`
             (function() {
               try {
                 var video = document.querySelector('video');
@@ -451,7 +639,7 @@ function createWindow() {
           `)
           // Periodically merge homepage recommendations from the webview when
           // playback source has been swapped to a hidden preload window
-          if (state && webviewWebContents && webviewWebContents !== ytWebContents && !webviewWebContents.isDestroyed()) {
+          if (state && webviewWebContents && webviewWebContents !== activePlaybackWc && !webviewWebContents.isDestroyed()) {
             recsPollCounter++
             if (recsPollCounter % 3 === 0) {
               try {
@@ -625,27 +813,28 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('ytmusic-command', async (_, command, data) => {
-    if (!ytWebContents || ytWebContents.isDestroyed()) return { ok: false }
+    const activePlaybackWc = getActivePlaybackWebContents()
+    if (!activePlaybackWc || activePlaybackWc.isDestroyed()) return { ok: false }
     try {
       switch (command) {
         case 'play':
-          await ytWebContents.executeJavaScript(`
+          diagLog('command:play', { wcId: activePlaybackWc.id })
+          enforceSingleActivePlayback(activePlaybackWc)
+          await activePlaybackWc.executeJavaScript(`
             (function() {
+              window.__tuneboxAwaitingOurNavigation = false;
               var v = document.querySelector('video');
-              if (v) v.play();
+              if (v) { v.muted = false; v.play(); }
             })()
           `)
           break
         case 'pause':
-          await ytWebContents.executeJavaScript(`
-            (function() {
-              var v = document.querySelector('video');
-              if (v) v.pause();
-            })()
-          `)
+          diagLog('command:pause', { wcId: activePlaybackWc.id })
+          pauseAllKnownPlaybackSources()
           break
         case 'next':
-          await ytWebContents.executeJavaScript(`
+          diagLog('command:next', { wcId: activePlaybackWc.id })
+          await activePlaybackWc.executeJavaScript(`
             (function() {
               var btn = document.querySelector('.next-button')
                      || document.querySelector('[aria-label="Next"]')
@@ -658,7 +847,8 @@ function registerIpcHandlers() {
           `)
           break
         case 'previous':
-          await ytWebContents.executeJavaScript(`
+          diagLog('command:previous', { wcId: activePlaybackWc.id })
+          await activePlaybackWc.executeJavaScript(`
             (function() {
               var btn = document.querySelector('.previous-button')
                      || document.querySelector('[aria-label="Previous"]')
@@ -670,7 +860,8 @@ function registerIpcHandlers() {
           `)
           break
         case 'dislike':
-          await ytWebContents.executeJavaScript(`
+          diagLog('command:dislike', { wcId: activePlaybackWc.id })
+          await activePlaybackWc.executeJavaScript(`
             (function() {
               var btn = document.querySelector('#dislike-button-renderer button')
                      || document.querySelector('ytmusic-like-button-renderer#like-button-renderer [aria-label*="dislike" i]')
@@ -682,7 +873,8 @@ function registerIpcHandlers() {
           break
         case 'seek':
           if (data && typeof data.time === 'number') {
-            await ytWebContents.executeJavaScript(`
+            diagLog('command:seek', { wcId: activePlaybackWc.id, time: data.time })
+            await activePlaybackWc.executeJavaScript(`
               (function() {
                 var v = document.querySelector('video');
                 if (v) v.currentTime = ${data.time};
@@ -692,9 +884,10 @@ function registerIpcHandlers() {
           break
         case 'setVolume':
           if (data && typeof data.volume === 'number') {
+            diagLog('command:setVolume', { wcId: activePlaybackWc.id, volume: data.volume })
             const vol01 = data.volume / 100
             lastKnownVolume = vol01
-            await ytWebContents.executeJavaScript(`
+            await activePlaybackWc.executeJavaScript(`
               (function() {
                 window.__tuneboxDesiredVolume = ${vol01};
                 var v = document.querySelector('video');
@@ -708,13 +901,23 @@ function registerIpcHandlers() {
           break
         case 'playTrack':
           if (data && data.url) {
+            diagLog('command:playTrack:start', {
+              requestedUrl: data.url,
+              wcId: activePlaybackWc.id,
+              preloadReady,
+              preloadUrl,
+              hasPreloadWin: !!(preloadWin && !preloadWin.isDestroyed())
+            })
+            // Bump serial: any in-flight play-poll from previous playTrack self-cancels
+            playTrackSerial++
             // Check if this URL was preloaded and is ready
             if (preloadReady && preloadUrl === data.url && preloadWin && !preloadWin.isDestroyed()) {
+              diagLog('command:playTrack:preloadHit', { requestedUrl: data.url, newSerial: playTrackSerial })
               // ── Swap to preloaded window (instant playback) ──
-              // 1. Mute and pause old active source
+              // 1. Mute and pause old active source + invalidate its play-poll
               if (ytWebContents && !ytWebContents.isDestroyed()) {
                 ytWebContents.setAudioMuted(true)
-                ytWebContents.executeJavaScript('var v=document.querySelector("video");if(v)v.pause();').catch(() => {})
+                ytWebContents.executeJavaScript('window.__tuneboxPlaySerial=-1;var v=document.querySelector("video");if(v){v.muted=true;v.pause();}window.__tuneboxAwaitingOurNavigation=false;').catch(() => {})
               }
               // 2. Destroy previous hidden playback window if any
               if (activeExtraWin && !activeExtraWin.isDestroyed()) {
@@ -722,22 +925,72 @@ function registerIpcHandlers() {
               }
               // 3. Promote preloaded window to active
               activeExtraWin = preloadWin
+              const promotedWin = activeExtraWin
+              const promotedWcId = promotedWin.webContents && !promotedWin.webContents.isDestroyed()
+                ? promotedWin.webContents.id
+                : null
+              diagLog('command:playTrack:promotePreload', { promotedWcId, requestedUrl: data.url })
+              promotedWin.on('closed', () => {
+                if (activeExtraWin !== promotedWin) return
+                diagLog('activeExtraWin:closed', { wcId: promotedWcId })
+                activeExtraWin = null
+                if (webviewWebContents && !webviewWebContents.isDestroyed()) {
+                  ytWebContents = webviewWebContents
+                }
+              })
               ytWebContents = preloadWin.webContents
+              // Invalidate any stale preload probes tied to the promoted window
+              preloadSerial++
+              if (preloadProbeTimer) {
+                clearInterval(preloadProbeTimer)
+                preloadProbeTimer = null
+              }
               preloadWin = null
               preloadUrl = null
               preloadReady = false
+              enforceSingleActivePlayback(ytWebContents)
               // 4. Unmute and resume playback with correct volume
               ytWebContents.setAudioMuted(false)
               const swapVol = lastKnownVolume
+              // Listen for videoEnded on the promoted window
+              ytWebContents.on('console-message', (_event, _level, message) => {
+                if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
+                }
+              })
               await ytWebContents.executeJavaScript(`
                 (function() {
+                  window.__tuneboxAwaitingOurNavigation = false;
                   window.__tuneboxDesiredVolume = ${swapVol};
                   window.__tuneboxSelfSetting = true;
                   var v = document.querySelector('video');
                   if (v) {
                     try { v.volume = ${swapVol}; } finally { window.__tuneboxSelfSetting = false; }
-                    v.play();
+                    v.muted = false;
+                    v.play().catch(function(){});
                   }
+                  // Also click YT Music play button to sync internal state
+                  var playBtn = document.querySelector('#play-pause-button');
+                  if (playBtn && v && v.paused) {
+                    playBtn.click();
+                  }
+                  // Aggressive retry: video.play() + play button click
+                  var retries = 0;
+                  function retryPlay() {
+                    retries++;
+                    var vid = document.querySelector('video');
+                    if (vid && !vid.paused && vid.currentTime > 0) { return; }
+                    if (vid) {
+                      vid.muted = false;
+                      vid.play().catch(function(){});
+                      if (vid.paused) {
+                        var pb = document.querySelector('#play-pause-button');
+                        if (pb) { pb.click(); }
+                      }
+                    }
+                    if (retries < 15) { setTimeout(retryPlay, 200); }
+                  }
+                  setTimeout(retryPlay, 200);
                 })()
               `)
               // 5. Navigate the old webview back to homepage for recommendations
@@ -746,54 +999,125 @@ function registerIpcHandlers() {
                 webviewWebContents.loadURL('https://music.youtube.com').catch(() => {})
               }
             } else {
+              diagLog('command:playTrack:preloadMiss', { requestedUrl: data.url, newSerial: playTrackSerial })
               // ── Normal navigation (preload miss) ──
               // Cancel stale preload if URL doesn't match
               if (preloadWin && !preloadWin.isDestroyed() && preloadUrl !== data.url) {
+                // Invalidate old preload callbacks before destroying the window
+                preloadSerial++
+                if (preloadProbeTimer) {
+                  clearInterval(preloadProbeTimer)
+                  preloadProbeTimer = null
+                }
                 preloadWin.destroy()
                 preloadWin = null
                 preloadUrl = null
                 preloadReady = false
               }
               const safeUrl = JSON.stringify(data.url)
-              // 1. Immediately pause current playback & clear ended flag
-              await ytWebContents.executeJavaScript(`
-                (function() {
-                  var v = document.querySelector('video');
-                  if (v) v.pause();
-                  window.__tuneboxVideoEnded = false;
-                })()
-              `)
-              // 2. Navigate to the new track
-              await ytWebContents.executeJavaScript(`
+              // Bump serial so any in-flight play-poll from a previous
+              // playTrack call will self-cancel.
+              playTrackSerial++
+              const mySerial = playTrackSerial
+              enforceSingleActivePlayback(activePlaybackWc)
+              // Navigate to the new track. With autoplay-policy=no-user-gesture-required,
+              // video.play() is guaranteed to work, so we use a simple approach:
+              // mute+pause old → SPA navigate → poll until video loads → play() → unmute.
+              await activePlaybackWc.executeJavaScript(`
                 (function() {
                   var url = ${safeUrl};
                   var match = url.match(/[?&]v=([^&]+)/);
-                  if (match) {
-                    var videoId = match[1];
-                    var watchPath = '/watch?v=' + videoId;
-                    var fullUrl = 'https://music.youtube.com' + watchPath;
-                    var app = document.querySelector('ytmusic-app');
-                    if (app && typeof app.navigate_ === 'function') {
-                      app.navigate_(watchPath);
-                      setTimeout(function() {
-                        var v = document.querySelector('video');
-                        if (!v || v.paused) window.location.href = fullUrl;
-                      }, 5000);
-                      return;
-                    }
+                  if (!match) { window.location.href = url; return; }
+
+                  var videoId = match[1];
+                  var watchPath = '/watch?v=' + videoId;
+                  var fullUrl = 'https://music.youtube.com' + watchPath;
+
+                  // Clear flags
+                  window.__tuneboxVideoEnded = false;
+                  window.__tuneboxAwaitingOurNavigation = false;
+                  window.__tuneboxIgnoreEndedUntil = Date.now() + 4000;
+
+                  // Mute + pause current playback during transition.
+                  // We mute immediately, then pause after a brief delay so YT Music
+                  // doesn't fight us. The new video will get its own play() call.
+                  var v = document.querySelector('video');
+                  if (v) { v.muted = true; v.pause(); }
+
+                  // SPA navigate
+                  var navigated = false;
+                  var app = document.querySelector('ytmusic-app');
+                  if (app && typeof app.navigate_ === 'function') {
+                    app.navigate_(watchPath);
+                    navigated = true;
+                  } else {
                     var router = document.querySelector('yt-navigation-manager');
                     if (router && typeof router.navigate === 'function') {
                       router.navigate(watchPath);
-                      setTimeout(function() {
-                        var v = document.querySelector('video');
-                        if (!v || v.paused) window.location.href = fullUrl;
-                      }, 5000);
+                      navigated = true;
+                    }
+                  }
+                  if (!navigated) {
+                    window.location.href = fullUrl;
+                    return;
+                  }
+
+                  // Store serial on window so we can check cancellation.
+                  window.__tuneboxPlaySerial = ${mySerial};
+
+                  // Poll: wait for video to be ready, then force play + unmute
+                  var attempts = 0;
+                  function ensurePlaying() {
+                    // Cancel if a newer playTrack arrived
+                    if (window.__tuneboxPlaySerial !== ${mySerial}) return;
+                    attempts++;
+                    var vid = document.querySelector('video');
+
+                    // Success: playback has started
+                    if (vid && !vid.paused) {
+                      vid.muted = false;
                       return;
                     }
-                    window.location.href = fullUrl;
-                  } else {
-                    window.location.href = url;
+
+                    if (vid) {
+                      // Force play once video has enough data
+                      if (vid.readyState >= 2) {
+                        vid.muted = false;
+                        vid.play().then(function() {}).catch(function() {});
+                      } else if (vid.readyState >= 1) {
+                        vid.play().catch(function() {});
+                      }
+
+                      // Keep YT Music internal play/pause state aligned.
+                      // Low-frequency click avoids rapid toggle flapping.
+                      if (vid.paused && attempts % 4 === 0) {
+                        var playBtn = document.querySelector('#play-pause-button');
+                        if (playBtn) { playBtn.click(); }
+                      }
+                    }
+
+                    if (attempts >= 40) {
+                      // Last resort: full page redirect (auto-plays on load)
+                      window.location.href = fullUrl;
+                      return;
+                    }
+                    setTimeout(ensurePlaying, 200);
                   }
+                  // Start polling immediately
+                  ensurePlaying();
+
+                  // Fallback: if still paused after navigation settles, force one more resume.
+                  setTimeout(function() {
+                    if (window.__tuneboxPlaySerial !== ${mySerial}) return;
+                    var vid = document.querySelector('video');
+                    if (vid && vid.paused) {
+                      window.__tuneboxAwaitingOurNavigation = false;
+                      vid.muted = false;
+                      vid.play().catch(function() {});
+                      var pb = document.querySelector('#play-pause-button');
+                      if (pb) { pb.click(); }
+                    }
+                  }, 2500);
                 })()
               `)
             }
@@ -801,18 +1125,35 @@ function registerIpcHandlers() {
           break
         case 'preloadTrack':
           if (data && data.url) {
+            if (preloadWin && !preloadWin.isDestroyed() && preloadUrl === data.url) {
+              diagLog('command:preloadTrack:skipExisting', {
+                url: data.url,
+                preloadReady
+              })
+              break
+            }
+
+            diagLog('command:preloadTrack:start', { url: data.url })
+            preloadSerial++
+            const myPreloadSerial = preloadSerial
+            const targetUrl = data.url
+            if (preloadProbeTimer) {
+              clearInterval(preloadProbeTimer)
+              preloadProbeTimer = null
+            }
             // Destroy existing preload window if any
             if (preloadWin && !preloadWin.isDestroyed()) {
               preloadWin.destroy()
             }
             preloadReady = false
-            preloadUrl = data.url
+            preloadUrl = targetUrl
             preloadWin = createHiddenPlaybackWindow()
             preloadWin.webContents.setAudioMuted(true)
             const preloadTarget = preloadWin
-            preloadWin.webContents.on('dom-ready', () => {
+            preloadWin.webContents.once('dom-ready', () => {
+              if (myPreloadSerial !== preloadSerial) return
               if (preloadTarget.isDestroyed()) return
-              setupPlaybackScripts(preloadTarget.webContents)
+              setupPlaybackScripts(preloadTarget.webContents, lastKnownVolume)
               // Set volume to match current playback
               const pvol = lastKnownVolume
               preloadTarget.webContents.executeJavaScript(`
@@ -822,9 +1163,28 @@ function registerIpcHandlers() {
               `).catch(() => {})
               // Wait for video to buffer, then pause it
               let attempts = 0
+              let probeInFlight = false
+              let probeResolved = false
               const checkInterval = setInterval(async () => {
+                if (myPreloadSerial !== preloadSerial) {
+                  clearInterval(checkInterval)
+                  if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+                  return
+                }
+                if (probeResolved) {
+                  clearInterval(checkInterval)
+                  if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+                  return
+                }
+                if (probeInFlight) return
+
                 attempts++
-                if (preloadTarget.isDestroyed()) { clearInterval(checkInterval); return }
+                if (preloadTarget.isDestroyed()) {
+                  clearInterval(checkInterval)
+                  if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+                  return
+                }
+                probeInFlight = true
                 try {
                   const ready = await preloadTarget.webContents.executeJavaScript(`
                     (function() {
@@ -838,16 +1198,35 @@ function registerIpcHandlers() {
                   `)
                   if (ready) {
                     clearInterval(checkInterval)
+                    if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+                    if (myPreloadSerial !== preloadSerial) return
+                    if (!preloadWin || preloadWin !== preloadTarget || preloadTarget.isDestroyed()) return
+                    if (preloadUrl !== targetUrl) return
+                    probeResolved = true
                     preloadReady = true
+                    diagLog('command:preloadTrack:ready', { url: targetUrl, attempts })
                   }
-                } catch(e) { clearInterval(checkInterval) }
-                if (attempts > 30) clearInterval(checkInterval) // 15s timeout
+                } catch(e) {
+                  clearInterval(checkInterval)
+                  if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+                }
+                finally { probeInFlight = false }
+                if (attempts > 30) {
+                  clearInterval(checkInterval) // 15s timeout
+                  if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+                }
               }, 500)
+              preloadProbeTimer = checkInterval
+              preloadTarget.webContents.once('destroyed', () => {
+                clearInterval(checkInterval)
+                if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
+              })
             })
             preloadWin.loadURL(data.url)
           }
           break
         case 'refreshPage':
+          diagLog('command:refreshPage')
           // Navigate the webview (not the active playback source) to refresh recommendations
           if (webviewWebContents && !webviewWebContents.isDestroyed()) {
             webviewWebContents.setAudioMuted(true)
@@ -879,6 +1258,21 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+})
+
+app.on('before-quit', () => {
+  // Silence all audio immediately so nothing is heard after Cmd+Q / quit.
+  const silenceWC = (wc) => {
+    if (!wc || wc.isDestroyed()) return
+    try {
+      wc.setAudioMuted(true)
+      wc.executeJavaScript('(function(){var v=document.querySelector("video");if(v){v.muted=true;v.pause();}})()').catch(()=>{})
+    } catch(_) {}
+  }
+  silenceWC(ytWebContents)
+  silenceWC(webviewWebContents)
+  if (activeExtraWin && !activeExtraWin.isDestroyed()) silenceWC(activeExtraWin.webContents)
+  if (preloadWin && !preloadWin.isDestroyed()) silenceWC(preloadWin.webContents)
 })
 
 app.on('window-all-closed', () => {

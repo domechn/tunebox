@@ -207,6 +207,7 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     if (win.electron?.onYouTubeMusicState) {
       const unsub = win.electron.onYouTubeMusicState((state) => {
         const trackChanged = (state.title && state.title !== lastTitle) || (state.artist && state.artist !== lastArtist)
+        let acceptedTrackChanged = trackChanged
         if (state.title) lastTitle = state.title
         if (state.artist) lastArtist = state.artist
 
@@ -238,6 +239,7 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
               }
             } else if (Date.now() - pending.startedAt < PENDING_TRACK_TIMEOUT_MS) {
               shouldApplyIncoming = false
+              acceptedTrackChanged = false
             } else {
               pendingTrackRef.current = null
             }
@@ -354,21 +356,27 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
         setPlaybackState(prev => {
           const newIsPlaying = state.isPlaying ?? prev.isPlaying
+          const nextCurrentTime = typeof state.currentTime === 'number' && Number.isFinite(state.currentTime)
+            ? state.currentTime
+            : prev.currentTime
+          const nextDuration = typeof state.duration === 'number' && Number.isFinite(state.duration)
+            ? state.duration
+            : prev.duration
           isPlayingRef.current = newIsPlaying
-          if (trackChanged) {
+          if (acceptedTrackChanged) {
             reapplyDesiredVolume([500])
             return {
               ...prev,
               isPlaying: newIsPlaying,
-              currentTime: state.currentTime ?? 0,
-              duration: state.duration ?? 0
+              currentTime: nextCurrentTime,
+              duration: nextDuration
             }
           }
           return {
             ...prev,
             isPlaying: newIsPlaying,
-            currentTime: state.currentTime ?? prev.currentTime,
-            duration: state.duration ?? prev.duration
+            currentTime: nextCurrentTime,
+            duration: nextDuration
           }
         })
       })
@@ -448,6 +456,8 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
   const navigationCooldownRef = useRef(false)
   const navigationCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevTrackTitleRef = useRef('')
+  const autoAdvanceGuardRef = useRef(0) // Monotonic counter to prevent double auto-advance
+  const endSwitchArmedRef = useRef(false)
   const [hasAutoPlayed, setHasAutoPlayed] = useState(false)
 
   const normalizeText = useCallback((text?: string) => (text || '').replace(/\s+/g, '').toLowerCase(), [])
@@ -759,8 +769,31 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     // If navigation cooldown is active, a user-initiated skip already triggered the next track
     if (navigationCooldownRef.current) return
 
+    // Bump guard so the title-change watcher (Effect #4) won't also trigger
+    autoAdvanceGuardRef.current++
     playNextFromPlaylist()
   }, [videoEnded, playNextFromPlaylist])
+
+  // 3b. Preemptive auto-advance a split-second before ending.
+  // This avoids briefly hearing YT Music's own autoplay queue track.
+  useEffect(() => {
+    if (!playbackState.isPlaying) return
+    if (navigationCooldownRef.current) return
+    if (playbackState.duration <= 0) return
+
+    const remaining = playbackState.duration - playbackState.currentTime
+
+    if (remaining > 1.2 || playbackState.currentTime < 2) {
+      endSwitchArmedRef.current = false
+      return
+    }
+
+    if (remaining <= 0.35 && remaining >= -0.1 && !endSwitchArmedRef.current) {
+      endSwitchArmedRef.current = true
+      autoAdvanceGuardRef.current++
+      playNextFromPlaylist()
+    }
+  }, [playbackState.isPlaying, playbackState.currentTime, playbackState.duration, playNextFromPlaylist])
 
   // 4. Detect title change — if YT Music auto-advanced on its own,
   //    redirect to our next playlist song
@@ -773,6 +806,15 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
     if (!prevTitle || currentTitle === prevTitle) return
     if (navigationCooldownRef.current) return
+
+    // If Effect #3 (videoEnded) already triggered an auto-advance recently,
+    // skip this to avoid a double playTrack race.
+    const guardBefore = autoAdvanceGuardRef.current
+    if (guardBefore > 0) {
+      // Consume the guard — the next title change (if any) can proceed
+      autoAdvanceGuardRef.current = 0
+      return
+    }
 
     const idx = playlistIndexRef.current
     const pl = playlistRef.current
