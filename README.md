@@ -1,153 +1,137 @@
-# Vintage Radio - YouTube Music Desktop App
+# TuneBox
 
-一个复古风格的 YouTube Music 桌面应用，采用 1960-70 年代收音机的美学设计。
+A vintage-styled desktop music player for YouTube Music, featuring a retro 1960s-70s aesthetic with wood grain textures, brass accents, and an amber-glow display.
 
-## 功能特性
+## Features
 
-✅ **复古电台界面** - 木纹纹理、黄铜旋钮、琥珀色显示屏
-✅ **YouTube Music 登录** - 集成 YouTube Music 登录界面
-✅ **播放控制** - 播放/暂停、上一首、下一首
-✅ **歌曲信息显示** - 实时显示歌名、艺术家
-✅ **歌词同步显示** - 正在播放的歌词滚动显示  
-✅ **音量调节** - 复古旋钮式音量控制
-✅ **自动 Dislike** - 切换下一首时自动 dislike 当前歌曲
-✅ **离线检测** - 断网时显示"无信号"提示
-✅ **音量持久化** - 记住上次设置的音量
+- **YouTube Music Integration** - Full playback control through YouTube Music's web interface
+- **Vintage UI** - Wood grain texture, brass knobs, amber screen with scanline effects
+- **Playback Controls** - Play/pause, skip forward/back, dislike & skip
+- **Rotary Volume Knob** - Drag-to-rotate volume control with haptic-style feedback
+- **Live Track Info** - Real-time song title, artist, and album art display
+- **Synced Lyrics** - Displays the current lyric line in real time
+- **Progress Scrubbing** - Click or drag the progress bar to seek
+- **Session Persistence** - Remembers login state and volume across restarts
+- **Offline Detection** - Shows a "No Connection" screen when the network drops
 
-## YouTube Music API 集成
+## Getting Started
 
-由于浏览器安全限制，完整的 YouTube Music 控制需要通过 **Electron 桌面应用** 实现。
+### Prerequisites
 
-### Web 版功能
-- ✅ YouTube Music 登录界面
-- ✅ 复古收音机 UI
-- ✅ 基础控制布局
-- ⚠️ 实际播放控制需要 Electron
+- [Node.js](https://nodejs.org/) >= 18
+- npm or yarn
 
-### Electron 版功能  
-- ✅ 完整 YouTube Music 控制
-- ✅ 播放/暂停、上一首/下一首
-- ✅ 歌曲信息提取
-- ✅ 歌词同步显示
-- ✅ Dislike 功能
-- ✅ 音量控制
+### Install Dependencies
 
-详见 [YOUTUBE_MUSIC_INTEGRATION.md](./YOUTUBE_MUSIC_INTEGRATION.md) 了解集成原理。
+```bash
+npm install
+```
 
-## 打包为桌面应用
+### Development (Web)
 
-详细的打包指南请参见 [DESKTOP_APP_GUIDE.md](./DESKTOP_APP_GUIDE.md)
+```bash
+npm run dev
+```
 
-### 快速开始
+Opens the app at `http://localhost:5173`. Note: actual YouTube Music playback control requires the Electron desktop build.
 
-1. 安装 Electron 依赖：
-\`\`\`bash
-npm install --save-dev electron electron-builder concurrently wait-on cross-env
-\`\`\`
+### Development (Electron)
 
-2. 开发模式运行：
-\`\`\`bash
+```bash
+# Install Electron dependencies
+cd electron && npm install && cd ..
+
+# Run in development mode
 npm run electron:dev
-\`\`\`
+```
 
-3. 构建桌面应用：
-\`\`\`bash
+### Build for Production
+
+```bash
+# Build web assets
+npm run build
+
+# Package as desktop app
+# macOS
+npm run package:mac
+
 # Windows
 npm run electron:build:win
 
-# macOS
-npm run electron:build:mac
-
 # Linux
 npm run electron:build:linux
-\`\`\`
+```
 
-生成的安装包将位于 `release/` 目录中。
+Built installers are output to the `release/` directory.
 
-## 项目结构
+## Controls
 
-\`\`\`
-├── electron/                      # Electron 集成
-│   ├── main.js                   # Electron 主进程
-│   ├── preload.js                # 预加载脚本
-│   └── ytmusic-control.js        # YouTube Music 控制脚本
+| Control | Action |
+|---------|--------|
+| **Play / Pause** | Bottom wheel button |
+| **Previous Track** | Left wheel button |
+| **Next Track** | Right wheel button |
+| **Dislike & Skip** | Top wheel button (thumbs down) |
+| **Volume** | Drag the outer brass ring to rotate |
+| **Seek** | Click or drag the progress bar |
+| **Sign Out** | Top-left button |
+| **Quit** | Top-right power button |
+
+## Architecture
+
+```
+├── electron/                    # Electron desktop shell
+│   ├── main.js                  # Main process (window, IPC, auth capture)
+│   ├── preload.js               # Preload script (context bridge)
+│   └── ytmusic-control.js       # Injected script for YT Music DOM control
 ├── src/
+│   ├── App.tsx                  # Entry point (auth flow, online/offline)
+│   ├── index.css                # Vintage theme styles
 │   ├── components/
-│   │   └── player/
-│   │       ├── VintageRadio.tsx      # 主收音机组件
-│   │       └── TrackDisplay.tsx      # 歌曲信息和歌词显示
-│   ├── hooks/
-│   │   └── use-youtube-music.ts      # YouTube Music 控制 Hook
-│   ├── App.tsx                   # 应用入口（含登录界面）
-│   └── index.css                 # 复古主题样式
-├── DESKTOP_APP_GUIDE.md          # 桌面应用打包指南
-├── YOUTUBE_MUSIC_INTEGRATION.md  # API 集成说明
-└── package.json                  # 依赖和构建脚本
-\`\`\`
+│   │   ├── player/
+│   │   │   └── VintageRadio.tsx # Main player UI with wheel controls
+│   │   └── ui/                  # shadcn/ui component library
+│   └── hooks/
+│       └── use-youtube-music.ts # YouTube Music playback hook (IPC + fallback)
+├── build/                       # App icons (SVG, PNG, ICO, iconset)
+└── package.json
+```
 
-## 技术栈
+### How It Works
 
-- **React 19** - UI 框架
-- **TypeScript** - 类型安全
-- **Tailwind CSS** - 样式框架
-- **shadcn/ui** - UI 组件库
-- **Phosphor Icons** - 图标库
-- **Electron** - 桌面应用框架
-- **Vite** - 构建工具
+1. **Authentication** - On first launch, the user signs into YouTube Music via a dedicated Electron window. The main process intercepts API request headers (authorization + cookies) and persists them to disk.
 
-## 设计特色
+2. **Playback** - A hidden `<webview>` loads YouTube Music. The main process injects `ytmusic-control.js` into the page, which manipulates the DOM (clicking buttons, reading track info, controlling the `<video>` element).
 
-### 色彩方案
-- **背景**: 深胡桃木色 `oklch(0.35 0.04 55)`
-- **主色**: 黄铜金色 `oklch(0.65 0.12 75)`
-- **强调色**: 温暖琥珀色 `oklch(0.70 0.15 65)`
+3. **State Sync** - The main process polls the webview every second via `executeJavaScript`, extracts player state (title, artist, thumbnail, progress, lyrics), and forwards it to the renderer over IPC.
 
-### 字体
-- **主字体**: Orbitron - 几何无衬线字体，模拟 LED 显示效果
-- **辅助字体**: Space Mono - 等宽字体，技术复古感
+4. **Lyrics** - TuneBox automatically clicks the "Lyrics" tab when a new track starts and reads synced lyric lines from the video's text tracks.
 
-### 特效
-- **木纹纹理**: 使用 CSS 渐变模拟真实木纹
-- **黄铜旋钮**: 径向渐变 + 阴影营造 3D 金属质感
-- **琥珀发光**: 柔和脉冲动画模拟电子管发光
-- **扬声器网格**: 点状重复图案
+## Tech Stack
 
-## 控制说明
+- **React 19** + **TypeScript** - UI framework
+- **Vite** - Build tool
+- **Tailwind CSS** - Utility-first styling
+- **shadcn/ui** + **Radix UI** - Component primitives
+- **Phosphor Icons** - Icon set
+- **Electron** - Desktop application shell
 
-- **PREV 按钮**: 上一首歌曲
-- **PLAY/PAUSE 按钮**: 播放/暂停（居中）
-- **NEXT 按钮**: 下一首（自动 dislike 当前歌曲）
-- **VOL 旋钮**: 拖动旋转调节音量
-- **POWER 按钮**: 退出应用
+## Design
 
-## 开发日志
+### Color Palette
 
-### 第 5 次迭代（当前）
-- ✅ **实现真实 YouTube Music API 集成**
-  - 创建 `use-youtube-music` Hook 用于播放控制
-  - Electron 脚本注入 YouTube Music 页面
-  - 通过 postMessage 实现双向通信
-- ✅ **添加登录功能**
-  - 首次启动显示 YouTube Music 登录界面
-  - 登录后进入复古收音机界面
-- ✅ **添加播放/暂停按钮**
-  - 新增居中播放/暂停控制
-  - 实时显示播放状态
-- ✅ **实现歌词功能**
-  - TrackDisplay 组件显示同步歌词
-  - 根据播放进度高亮当前歌词行
-- ✅ **实现 Dislike 功能**
-  - 点击 NEXT 自动 dislike 当前歌曲
-- ✅ **删除未使用代码**
-  - 移除 MiniPlayer 组件
-  - 移除 PlayerControls 组件  
-  - 移除 SearchBar 和 SettingsDialog
+| Role | Color | OKLCH |
+|------|-------|-------|
+| Wood background | Deep walnut | `oklch(0.35 0.04 55)` |
+| Brass accent | Metallic gold | `oklch(0.65 0.12 75)` |
+| Amber glow | Warm amber | `oklch(0.70 0.15 65)` |
+| Text | Cream | `oklch(0.92 0.03 75)` |
 
-### 之前的迭代
-- ✅ 基础 UI 和控制功能
-- ✅ 复古风格主题优化
-- ✅ 状态持久化
+### Typography
 
-## 许可证
+- **Orbitron** - Geometric sans-serif for the digital display look
+- **Space Mono** - Monospace for the retro-computing feel
+
+## License
 
 MIT
