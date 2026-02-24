@@ -140,7 +140,7 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
           <SignOut size={14} weight="bold" />
         </button>
         <div className="app-brand">
-          <span className="app-brand-text">YT Music</span>
+          <span className="app-brand-text">TuneBox</span>
         </div>
         <button className="physical-btn physical-btn-danger" onClick={onExit} title="Quit">
           <Power size={14} weight="bold" />

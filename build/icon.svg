@@ -23,15 +23,15 @@
       <stop offset="100%" stop-color="#d4a040"/>
     </linearGradient>
     <!-- Amber glow gradient for screen -->
-    <radialGradient id="amberScreen" cx="50%" cy="42%" r="52%">
+    <radialGradient id="amberScreen" cx="50%" cy="45%" r="50%">
       <stop offset="0%"   stop-color="#f4c870"/>
       <stop offset="40%"  stop-color="#d4893a"/>
       <stop offset="75%"  stop-color="#b05e20"/>
       <stop offset="100%" stop-color="#7a3a10"/>
     </radialGradient>
     <!-- Screen glow -->
-    <radialGradient id="screenGlow" cx="50%" cy="30%" r="60%">
-      <stop offset="0%"   stop-color="#ffeaa0" stop-opacity="0.7"/>
+    <radialGradient id="screenGlow" cx="50%" cy="35%" r="55%">
+      <stop offset="0%"   stop-color="#ffeaa0" stop-opacity="0.6"/>
       <stop offset="100%" stop-color="#c8600a" stop-opacity="0"/>
     </radialGradient>
     <!-- Knob gradient -->
@@ -40,12 +40,21 @@
       <stop offset="45%"  stop-color="#c89040"/>
       <stop offset="100%" stop-color="#7a4a18"/>
     </radialGradient>
-    <!-- Speaker hole dark -->
-    <radialGradient id="speakerHole" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#1a0c04"/>
-      <stop offset="100%" stop-color="#2e1a0a"/>
+    <!-- Vinyl record gradient -->
+    <radialGradient id="vinylGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#f4c870"/>
+      <stop offset="12%"  stop-color="#e8b040"/>
+      <stop offset="18%"  stop-color="#1a0c04"/>
+      <stop offset="42%"  stop-color="#2a1608"/>
+      <stop offset="44%"  stop-color="#3a2010"/>
+      <stop offset="46%"  stop-color="#1a0c04"/>
+      <stop offset="68%"  stop-color="#2a1608"/>
+      <stop offset="70%"  stop-color="#3a2010"/>
+      <stop offset="72%"  stop-color="#1a0c04"/>
+      <stop offset="95%"  stop-color="#2a1608"/>
+      <stop offset="100%" stop-color="#1a0c04"/>
     </radialGradient>
-    <!-- Inset shadow around screen -->
+    <!-- Screen inset shadow -->
     <radialGradient id="screenInset" cx="50%" cy="50%" r="50%">
       <stop offset="55%"  stop-color="#00000000"/>
       <stop offset="100%" stop-color="#00000080"/>
@@ -58,7 +67,11 @@
       <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0a0502" flood-opacity="0.6"/>
     </filter>
     <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="noteGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
     <clipPath id="iconClip">
@@ -86,165 +99,155 @@
   <rect x="54" y="54" width="916" height="916" rx="155" ry="155"
         fill="none" stroke="#b07828" stroke-width="5" clip-path="url(#iconClip)" opacity="0.6"/>
 
-  <!-- ── Main body panel (slightly raised inset) ── -->
+  <!-- ── Main body panel ── -->
   <rect x="80" y="80" width="864" height="864" rx="130" ry="130"
         fill="#2e1a0a" opacity="0.45" clip-path="url(#iconClip)"/>
 
-  <!-- ── Speaker grille — left side dots ── -->
-  <g opacity="0.70" clip-path="url(#iconClip)">
-    <!-- Speaker grille: 6×9 dot grid, left panel -->
-    <g fill="#1e1008">
-      <!-- Row 1 -->
-      <circle cx="148" cy="380" r="11"/><circle cx="148" cy="420" r="11"/>
-      <circle cx="148" cy="460" r="11"/><circle cx="148" cy="500" r="11"/>
-      <circle cx="148" cy="540" r="11"/><circle cx="148" cy="580" r="11"/>
-      <circle cx="148" cy="620" r="11"/><circle cx="148" cy="660" r="11"/>
-      <circle cx="148" cy="700" r="11"/>
-      <!-- Row 2 -->
-      <circle cx="188" cy="380" r="11"/><circle cx="188" cy="420" r="11"/>
-      <circle cx="188" cy="460" r="11"/><circle cx="188" cy="500" r="11"/>
-      <circle cx="188" cy="540" r="11"/><circle cx="188" cy="580" r="11"/>
-      <circle cx="188" cy="620" r="11"/><circle cx="188" cy="660" r="11"/>
-      <circle cx="188" cy="700" r="11"/>
-      <!-- Row 3 -->
-      <circle cx="228" cy="380" r="11"/><circle cx="228" cy="420" r="11"/>
-      <circle cx="228" cy="460" r="11"/><circle cx="228" cy="500" r="11"/>
-      <circle cx="228" cy="540" r="11"/><circle cx="228" cy="580" r="11"/>
-      <circle cx="228" cy="620" r="11"/><circle cx="228" cy="660" r="11"/>
-      <circle cx="228" cy="700" r="11"/>
-      <!-- Row 4 -->
-      <circle cx="268" cy="380" r="11"/><circle cx="268" cy="420" r="11"/>
-      <circle cx="268" cy="460" r="11"/><circle cx="268" cy="500" r="11"/>
-      <circle cx="268" cy="540" r="11"/><circle cx="268" cy="580" r="11"/>
-      <circle cx="268" cy="620" r="11"/><circle cx="268" cy="660" r="11"/>
-      <circle cx="268" cy="700" r="11"/>
-    </g>
-    <!-- Speaker grille: right side -->
-    <g fill="#1e1008">
-      <circle cx="756" cy="380" r="11"/><circle cx="756" cy="420" r="11"/>
-      <circle cx="756" cy="460" r="11"/><circle cx="756" cy="500" r="11"/>
-      <circle cx="756" cy="540" r="11"/><circle cx="756" cy="580" r="11"/>
-      <circle cx="756" cy="620" r="11"/><circle cx="756" cy="660" r="11"/>
-      <circle cx="756" cy="700" r="11"/>
-      <circle cx="796" cy="380" r="11"/><circle cx="796" cy="420" r="11"/>
-      <circle cx="796" cy="460" r="11"/><circle cx="796" cy="500" r="11"/>
-      <circle cx="796" cy="540" r="11"/><circle cx="796" cy="580" r="11"/>
-      <circle cx="796" cy="620" r="11"/><circle cx="796" cy="660" r="11"/>
-      <circle cx="796" cy="700" r="11"/>
-      <circle cx="836" cy="380" r="11"/><circle cx="836" cy="420" r="11"/>
-      <circle cx="836" cy="460" r="11"/><circle cx="836" cy="500" r="11"/>
-      <circle cx="836" cy="540" r="11"/><circle cx="836" cy="580" r="11"/>
-      <circle cx="836" cy="620" r="11"/><circle cx="836" cy="660" r="11"/>
-      <circle cx="836" cy="700" r="11"/>
-      <circle cx="876" cy="380" r="11"/><circle cx="876" cy="420" r="11"/>
-      <circle cx="876" cy="460" r="11"/><circle cx="876" cy="500" r="11"/>
-      <circle cx="876" cy="540" r="11"/><circle cx="876" cy="580" r="11"/>
-      <circle cx="876" cy="620" r="11"/><circle cx="876" cy="660" r="11"/>
-      <circle cx="876" cy="700" r="11"/>
-    </g>
-  </g>
+  <!-- ── App name strip ── -->
+  <text x="512" y="195" font-family="'Courier New', monospace" font-size="56"
+        font-weight="bold" fill="#c89040" text-anchor="middle" letter-spacing="10"
+        opacity="0.85" clip-path="url(#iconClip)">TUNEBOX</text>
+  <line x1="220" y1="212" x2="804" y2="212"
+        stroke="#c89040" stroke-width="3" opacity="0.35" clip-path="url(#iconClip)"/>
 
-  <!-- ── Amber screen / dial window ── -->
+  <!-- ── Power LED (top right) ── -->
+  <circle cx="876" cy="160" r="18" fill="#c0380a" opacity="0.9" clip-path="url(#iconClip)"/>
+  <circle cx="876" cy="160" r="10" fill="#ff6030" opacity="0.9" clip-path="url(#iconClip)"/>
+  <circle cx="876" cy="160" r="18" fill="none" stroke="#8a2808" stroke-width="3" clip-path="url(#iconClip)"/>
+
+  <!-- ── Amber screen / display window ── -->
   <!-- Screen border brass frame -->
-  <rect x="298" y="290" width="428" height="310" rx="28" ry="28"
+  <rect x="188" y="248" width="648" height="420" rx="28" ry="28"
         fill="none" stroke="url(#brassRing)" stroke-width="16"
         filter="url(#softShadow)" clip-path="url(#iconClip)"/>
   <!-- Screen dark background + amber glow -->
-  <rect x="308" y="300" width="408" height="290" rx="20" ry="20"
+  <rect x="200" y="260" width="624" height="396" rx="20" ry="20"
         fill="#1a0c04" clip-path="url(#iconClip)"/>
-  <rect x="308" y="300" width="408" height="290" rx="20" ry="20"
+  <rect x="200" y="260" width="624" height="396" rx="20" ry="20"
         fill="url(#amberScreen)" opacity="0.92" clip-path="url(#iconClip)"/>
-  <rect x="308" y="300" width="408" height="290" rx="20" ry="20"
+  <rect x="200" y="260" width="624" height="396" rx="20" ry="20"
         fill="url(#screenGlow)" clip-path="url(#iconClip)"/>
   <!-- Screen inset shadow -->
-  <rect x="308" y="300" width="408" height="290" rx="20" ry="20"
+  <rect x="200" y="260" width="624" height="396" rx="20" ry="20"
         fill="url(#screenInset)" clip-path="url(#iconClip)"/>
 
-  <!-- ── Frequency dial arc ── -->
+  <!-- ── Vinyl Record in screen ── -->
   <g clip-path="url(#iconClip)">
-    <!-- Dial track -->
-    <path d="M 340 440 Q 512 330 684 440" fill="none"
-          stroke="#7a3a10" stroke-width="10" opacity="0.5"/>
-    <!-- Dial tick marks -->
-    <g stroke="#c8843a" stroke-width="5" opacity="0.8">
-      <line x1="345" y1="443" x2="345" y2="425"/>
-      <line x1="385" y1="411" x2="387" y2="393"/>
-      <line x1="430" y1="390" x2="433" y2="372"/>
-      <line x1="512" y1="383" x2="512" y2="365"/>
-      <line x1="594" y1="390" x2="591" y2="372"/>
-      <line x1="639" y1="411" x2="637" y2="393"/>
-      <line x1="679" y1="443" x2="679" y2="425"/>
-    </g>
-    <!-- Indicator needle -->
-    <line x1="560" y1="440" x2="552" y2="384"
-          stroke="#ffd060" stroke-width="7" stroke-linecap="round" opacity="0.95"/>
-    <circle cx="556" cy="442" r="10" fill="#d4893a" stroke="#ffd060" stroke-width="3"/>
+    <!-- Record disc -->
+    <circle cx="420" cy="458" r="150" fill="url(#vinylGrad)" opacity="0.85"/>
+    <!-- Record groove rings -->
+    <circle cx="420" cy="458" r="120" fill="none" stroke="#3a2010" stroke-width="1" opacity="0.4"/>
+    <circle cx="420" cy="458" r="100" fill="none" stroke="#3a2010" stroke-width="1" opacity="0.3"/>
+    <circle cx="420" cy="458" r="80"  fill="none" stroke="#3a2010" stroke-width="1" opacity="0.4"/>
+    <circle cx="420" cy="458" r="60"  fill="none" stroke="#3a2010" stroke-width="1" opacity="0.3"/>
+    <!-- Record label (center) -->
+    <circle cx="420" cy="458" r="26" fill="#e8b040" opacity="0.9"/>
+    <circle cx="420" cy="458" r="22" fill="#f4c870"/>
+    <circle cx="420" cy="458" r="5" fill="#1a0c04"/>
+    <!-- Record highlight -->
+    <circle cx="420" cy="458" r="148" fill="none" stroke="#f4c870" stroke-width="2" opacity="0.15"/>
+
+    <!-- Tonearm -->
+    <line x1="600" y1="300" x2="470" y2="400"
+          stroke="#c89040" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+    <line x1="470" y1="400" x2="450" y2="420"
+          stroke="#c89040" stroke-width="5" stroke-linecap="round" opacity="0.85"/>
+    <!-- Tonearm pivot -->
+    <circle cx="600" cy="300" r="14" fill="url(#knobGrad)" opacity="0.9"/>
+    <circle cx="600" cy="300" r="6" fill="#1a0c04" opacity="0.5"/>
+    <!-- Tonearm head -->
+    <rect x="440" y="414" width="18" height="12" rx="3" ry="3"
+          fill="#c89040" transform="rotate(-30, 450, 420)" opacity="0.85"/>
   </g>
 
-  <!-- ── Music waveform in screen ── -->
+  <!-- ── Music waveform (right side of screen) ── -->
   <g clip-path="url(#iconClip)" opacity="0.75">
-    <path d="M 340 510
-             Q 358 490 376 510 Q 394 530 412 510
-             Q 430 490 448 510 Q 466 530 484 510
-             Q 502 490 520 510 Q 538 530 556 510
-             Q 574 490 592 510 Q 610 530 628 510
-             Q 646 490 664 510 Q 682 530 684 510"
-          fill="none" stroke="#f4c870" stroke-width="8" stroke-linecap="round"
-          filter="url(#glowFilter)"/>
-    <!-- Subtle glow line -->
-    <path d="M 340 510
-             Q 358 490 376 510 Q 394 530 412 510
-             Q 430 490 448 510 Q 466 530 484 510
-             Q 502 490 520 510 Q 538 530 556 510
-             Q 574 490 592 510 Q 610 530 628 510
-             Q 646 490 664 510 Q 682 530 684 510"
-          fill="none" stroke="#fff4c0" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+    <!-- Vertical waveform bars -->
+    <g fill="#f4c870" filter="url(#glowFilter)">
+      <rect x="620" y="420" width="10" height="76" rx="5" ry="5"/>
+      <rect x="640" y="395" width="10" height="126" rx="5" ry="5"/>
+      <rect x="660" y="410" width="10" height="96" rx="5" ry="5"/>
+      <rect x="680" y="430" width="10" height="56" rx="5" ry="5"/>
+      <rect x="700" y="400" width="10" height="116" rx="5" ry="5"/>
+      <rect x="720" y="415" width="10" height="86" rx="5" ry="5"/>
+      <rect x="740" y="435" width="10" height="46" rx="5" ry="5"/>
+      <rect x="760" y="405" width="10" height="106" rx="5" ry="5"/>
+    </g>
+    <!-- Subtle glow bars overlay -->
+    <g fill="#fff4c0" opacity="0.3">
+      <rect x="622" y="422" width="6" height="72" rx="3" ry="3"/>
+      <rect x="642" y="397" width="6" height="122" rx="3" ry="3"/>
+      <rect x="662" y="412" width="6" height="92" rx="3" ry="3"/>
+      <rect x="682" y="432" width="6" height="52" rx="3" ry="3"/>
+      <rect x="702" y="402" width="6" height="112" rx="3" ry="3"/>
+      <rect x="722" y="417" width="6" height="82" rx="3" ry="3"/>
+      <rect x="742" y="437" width="6" height="42" rx="3" ry="3"/>
+      <rect x="762" y="407" width="6" height="102" rx="3" ry="3"/>
+    </g>
   </g>
 
-  <!-- ── Station label ── -->
-  <text x="512" y="575" font-family="'Courier New', monospace" font-size="36"
-        font-weight="bold" fill="#ffd888" text-anchor="middle" letter-spacing="6"
-        opacity="0.90" clip-path="url(#iconClip)">FM 107.9</text>
+  <!-- ── Now Playing text in screen ── -->
+  <text x="700" y="560" font-family="'Courier New', monospace" font-size="24"
+        font-weight="bold" fill="#ffd888" text-anchor="middle" letter-spacing="3"
+        opacity="0.80" clip-path="url(#iconClip)">NOW PLAYING</text>
+
+  <!-- ── Floating music note ── -->
+  <g clip-path="url(#iconClip)" filter="url(#noteGlow)">
+    <text x="280" y="340" font-family="serif" font-size="48"
+          fill="#ffd888" opacity="0.6">&#9835;</text>
+    <text x="700" y="320" font-family="serif" font-size="36"
+          fill="#ffd888" opacity="0.4">&#9834;</text>
+  </g>
 
   <!-- ── Bottom horizontal divider ── -->
-  <line x1="120" y1="770" x2="904" y2="770"
+  <line x1="120" y1="730" x2="904" y2="730"
         stroke="#7a5228" stroke-width="4" opacity="0.5" clip-path="url(#iconClip)"/>
+
+  <!-- ── Speaker grille dots (subtle, bottom area) ── -->
+  <g opacity="0.50" clip-path="url(#iconClip)">
+    <g fill="#1e1008">
+      <!-- Left speaker cluster -->
+      <circle cx="168" cy="780" r="8"/><circle cx="168" cy="810" r="8"/>
+      <circle cx="168" cy="840" r="8"/><circle cx="168" cy="870" r="8"/>
+      <circle cx="198" cy="780" r="8"/><circle cx="198" cy="810" r="8"/>
+      <circle cx="198" cy="840" r="8"/><circle cx="198" cy="870" r="8"/>
+      <circle cx="228" cy="780" r="8"/><circle cx="228" cy="810" r="8"/>
+      <circle cx="228" cy="840" r="8"/><circle cx="228" cy="870" r="8"/>
+      <!-- Right speaker cluster -->
+      <circle cx="796" cy="780" r="8"/><circle cx="796" cy="810" r="8"/>
+      <circle cx="796" cy="840" r="8"/><circle cx="796" cy="870" r="8"/>
+      <circle cx="826" cy="780" r="8"/><circle cx="826" cy="810" r="8"/>
+      <circle cx="826" cy="840" r="8"/><circle cx="826" cy="870" r="8"/>
+      <circle cx="856" cy="780" r="8"/><circle cx="856" cy="810" r="8"/>
+      <circle cx="856" cy="840" r="8"/><circle cx="856" cy="870" r="8"/>
+    </g>
+  </g>
 
   <!-- ── Knob: volume (left bottom) ── -->
   <g filter="url(#knobShadow)" clip-path="url(#iconClip)">
-    <circle cx="230" cy="858" r="64" fill="url(#knobGrad)"/>
-    <circle cx="230" cy="858" r="64" fill="none" stroke="#e8c060" stroke-width="5" opacity="0.6"/>
-    <!-- Knob indicator dot -->
-    <circle cx="230" cy="802" r="8" fill="#fff0b0" opacity="0.9"/>
-    <!-- Inner knob ring -->
-    <circle cx="230" cy="858" r="42" fill="none" stroke="#9a6828" stroke-width="4" opacity="0.5"/>
-    <!-- VOL label -->
-    <text x="230" y="956" font-family="'Courier New', monospace" font-size="28"
+    <circle cx="380" cy="830" r="52" fill="url(#knobGrad)"/>
+    <circle cx="380" cy="830" r="52" fill="none" stroke="#e8c060" stroke-width="4" opacity="0.6"/>
+    <circle cx="380" cy="782" r="7" fill="#fff0b0" opacity="0.9"/>
+    <circle cx="380" cy="830" r="34" fill="none" stroke="#9a6828" stroke-width="3" opacity="0.5"/>
+    <text x="380" y="910" font-family="'Courier New', monospace" font-size="24"
           font-weight="bold" fill="#c89040" text-anchor="middle" letter-spacing="3">VOL</text>
   </g>
 
-  <!-- ── Knob: tuning (right bottom) ── -->
+  <!-- ── Knob: skip (right bottom) ── -->
   <g filter="url(#knobShadow)" clip-path="url(#iconClip)">
-    <circle cx="794" cy="858" r="64" fill="url(#knobGrad)"/>
-    <circle cx="794" cy="858" r="64" fill="none" stroke="#e8c060" stroke-width="5" opacity="0.6"/>
-    <!-- Knob indicator dot -->
-    <circle cx="810" cy="800" r="8" fill="#fff0b0" opacity="0.9"/>
-    <!-- Inner knob ring -->
-    <circle cx="794" cy="858" r="42" fill="none" stroke="#9a6828" stroke-width="4" opacity="0.5"/>
-    <!-- TUNE label -->
-    <text x="794" y="956" font-family="'Courier New', monospace" font-size="28"
-          font-weight="bold" fill="#c89040" text-anchor="middle" letter-spacing="3">TUNE</text>
+    <circle cx="644" cy="830" r="52" fill="url(#knobGrad)"/>
+    <circle cx="644" cy="830" r="52" fill="none" stroke="#e8c060" stroke-width="4" opacity="0.6"/>
+    <circle cx="658" cy="784" r="7" fill="#fff0b0" opacity="0.9"/>
+    <circle cx="644" cy="830" r="34" fill="none" stroke="#9a6828" stroke-width="3" opacity="0.5"/>
+    <text x="644" y="910" font-family="'Courier New', monospace" font-size="24"
+          font-weight="bold" fill="#c89040" text-anchor="middle" letter-spacing="3">SKIP</text>
   </g>
 
-  <!-- ── Power LED (top right) ── -->
-  <circle cx="876" cy="180" r="18" fill="#c0380a" opacity="0.9" clip-path="url(#iconClip)"/>
-  <circle cx="876" cy="180" r="10" fill="#ff6030" opacity="0.9" clip-path="url(#iconClip)"/>
-  <circle cx="876" cy="180" r="18" fill="none" stroke="#8a2808" stroke-width="3" clip-path="url(#iconClip)"/>
-
-  <!-- ── App name strip ── -->
-  <text x="512" y="195" font-family="'Courier New', monospace" font-size="52"
-        font-weight="bold" fill="#c89040" text-anchor="middle" letter-spacing="8"
-        opacity="0.85" clip-path="url(#iconClip)">VINTAGE RADIO</text>
-  <line x1="200" y1="210" x2="824" y2="210"
-        stroke="#c89040" stroke-width="3" opacity="0.35" clip-path="url(#iconClip)"/>
+  <!-- ── Play button (center bottom) ── -->
+  <g clip-path="url(#iconClip)">
+    <circle cx="512" cy="830" r="32" fill="url(#knobGrad)" filter="url(#knobShadow)"/>
+    <circle cx="512" cy="830" r="32" fill="none" stroke="#e8c060" stroke-width="3" opacity="0.6"/>
+    <!-- Play triangle -->
+    <polygon points="502,814 502,846 528,830" fill="#1a0c04" opacity="0.8"/>
+  </g>
 </svg>

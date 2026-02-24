@@ -144,7 +144,7 @@ function createWindow() {
       allowRunningInsecureContent: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    title: 'Music Player',
+    title: 'TuneBox',
     autoHideMenuBar: true,
     resizable: false,
     icon: appIconPath
