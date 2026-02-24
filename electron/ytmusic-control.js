@@ -98,6 +98,30 @@ function setupYouTubeMusicControls() {
         }
         break
 
+      case 'playTrack':
+        if (event.data.data && event.data.data.url) {
+          var targetUrl = event.data.data.url;
+          var links = document.querySelectorAll('a');
+          var clicked = false;
+          for (var i = 0; i < links.length; i++) {
+            if (links[i].href === targetUrl) {
+              var container = links[i].closest('ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer');
+              var playBtn = container ? container.querySelector('ytmusic-play-button-renderer') : null;
+              if (playBtn) {
+                playBtn.click();
+              } else {
+                links[i].click();
+              }
+              clicked = true;
+              break;
+            }
+          }
+          if (!clicked) {
+            window.location.href = targetUrl;
+          }
+        }
+        break
+
       case 'setVolume':
         if (event.data.data && typeof event.data.data.volume === 'number') {
           const volumeSlider = await findElement('#volume-slider')

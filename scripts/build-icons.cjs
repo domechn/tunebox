@@ -23,22 +23,7 @@ function run(cmd) {
 }
 
 function svgToPng(src, dest, size) {
-  // Try qlmanage first (Quick Look, ships with macOS)
-  const qlDir = path.join(TMP, `ql_${size}`)
-  fs.mkdirSync(qlDir, { recursive: true })
-  const r = spawnSync('qlmanage', ['-t', '-s', String(size), '-o', qlDir, src], { encoding: 'utf8' })
-  // qlmanage appends ".png" to the filename, but sometimes adds extra suffixes
-  if (r.status === 0) {
-    const files = fs.readdirSync(qlDir)
-    const found = files.find(f => f.endsWith('.png'))
-    if (found) {
-      fs.copyFileSync(path.join(qlDir, found), dest)
-      // Ensure exact size with sips
-      run(`sips --resampleHeightWidth ${size} ${size} "${dest}" --out "${dest}"`)
-      return true
-    }
-  }
-  // Fallback: try sips direct (works on some macOS versions)
+  // Try sips direct (works on some macOS versions)
   try {
     run(`sips -s format png "${src}" --out "${dest}"`)
     run(`sips --resampleHeightWidth ${size} ${size} "${dest}" --out "${dest}"`)

@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, RefObject } from 'react'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { SkipBack, SkipForward, Play, Pause, ThumbsDown, Power, SignOut } from '@phosphor-icons/react'
-import { useYouTubeMusic, type YouTubeEmbedElement } from '@/hooks/use-youtube-music'
+import type { UseYouTubeMusicReturn } from '@/hooks/use-youtube-music'
 import { MarqueeText } from '@/components/ui/marquee-text'
 
 interface VintageRadioProps {
-  playerRef: RefObject<YouTubeEmbedElement | null>
+  ytMusic: UseYouTubeMusicReturn
   onExit: () => void
   onLogout: () => void
+  showDebugButton?: boolean
+  onOpenDebug?: () => void
 }
 
 function formatTime(seconds: number): string {
@@ -17,7 +19,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps) {
+export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = false, onOpenDebug }: VintageRadioProps) {
   const [volume, setVolume] = useLocalStorage<number>('radio-vol', 70)
   const [isChangingTrack, setIsChangingTrack] = useState(false)
   const [knobRotation, setKnobRotation] = useState(() => (volume / 100) * 270 - 135)
@@ -27,11 +29,27 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
   const knobRotationRef = useRef((volume / 100) * 270 - 135)
   const progressTrackRef = useRef<HTMLDivElement>(null)
 
-  const ytMusic = useYouTubeMusic(playerRef)
-  const { setVolume: ytSetVolume, trackInfo, playbackState } = ytMusic
+  const { setVolume: ytSetVolume, trackInfo, playbackState, playNextFromPlaylist, playPreviousFromPlaylist, playedHistory, isLoadingMore } = ytMusic
+  const isFirstTrack = playedHistory.length === 0
   const [imageError, setImageError] = useState(false)
 
   useEffect(() => { setImageError(false) }, [trackInfo.thumbnail])
+
+  // Clear isChangingTrack when track info actually changes (event-driven loading)
+  const prevTrackTitleForLoading = useRef(trackInfo.title)
+  useEffect(() => {
+    if (isChangingTrack && trackInfo.title !== prevTrackTitleForLoading.current) {
+      setIsChangingTrack(false)
+    }
+    prevTrackTitleForLoading.current = trackInfo.title
+  }, [trackInfo.title, isChangingTrack])
+
+  // Safety timeout: clear loading state after 8s even if track title never changes
+  useEffect(() => {
+    if (!isChangingTrack) return
+    const timer = setTimeout(() => setIsChangingTrack(false), 8000)
+    return () => clearTimeout(timer)
+  }, [isChangingTrack])
 
   // Sync volume to YouTube Music
   useEffect(() => {
@@ -40,23 +58,17 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
 
   const handlePrevious = () => {
     setIsChangingTrack(true)
-    ytMusic.previous()
-    setTimeout(() => setIsChangingTrack(false), 1200)
+    playPreviousFromPlaylist()
   }
 
   const handleNext = () => {
     setIsChangingTrack(true)
-    ytMusic.next()
-    setTimeout(() => setIsChangingTrack(false), 1200)
+    playNextFromPlaylist()
   }
 
   const handleDislike = () => {
     setIsChangingTrack(true)
-    ytMusic.dislike()
-    setTimeout(() => {
-      ytMusic.next()
-      setTimeout(() => setIsChangingTrack(false), 1200)
-    }, 150)
+    ytMusic.handleDislikeAndNext()
   }
 
   // Progress bar seek via click/drag
@@ -136,9 +148,16 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
     >
       {/* Top Bar with physical buttons and drag handle */}
       <div className="top-bar">
-        <button className="physical-btn" onClick={onLogout} title="Sign out">
-          <SignOut size={14} weight="bold" />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button className="physical-btn" onClick={onLogout} title="Sign out">
+            <SignOut size={14} weight="bold" />
+          </button>
+          {showDebugButton && onOpenDebug ? (
+            <button className="physical-btn" onClick={onOpenDebug} title="Debug">
+              D
+            </button>
+          ) : null}
+        </div>
         <div className="app-brand">
           <span className="app-brand-text">TuneBox</span>
         </div>
@@ -173,10 +192,19 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
             text={isChangingTrack ? 'Loading...' : (trackInfo.title || 'YouTube Music')} 
             className="track-title" 
           />
-          <MarqueeText 
-            text={!isChangingTrack && trackInfo.artist ? trackInfo.artist : '\u00A0'} 
-            className="track-artist" 
-          />
+          {isLoadingMore && !isChangingTrack ? (
+            <div className="loading-more-indicator">
+              <div className="dot" />
+              <div className="dot" />
+              <div className="dot" />
+              <span className="loading-more-text">Loading more songs</span>
+            </div>
+          ) : (
+            <MarqueeText 
+              text={!isChangingTrack && trackInfo.artist ? trackInfo.artist : '\u00A0'} 
+              className="track-artist" 
+            />
+          )}
         </div>
 
         {/* Progress Bar - clickable/draggable */}
@@ -216,7 +244,7 @@ export function VintageRadio({ playerRef, onExit, onLogout }: VintageRadioProps)
           <button className="wheel-btn wheel-top" onClick={handleDislike} disabled={isChangingTrack}>
             <ThumbsDown size={16} weight="fill" />
           </button>
-          <button className="wheel-btn wheel-left" onClick={handlePrevious} disabled={isChangingTrack}>
+          <button className="wheel-btn wheel-left" onClick={handlePrevious} disabled={isChangingTrack || isFirstTrack}>
             <SkipBack size={18} weight="fill" />
           </button>
           <button className="wheel-btn wheel-right" onClick={handleNext} disabled={isChangingTrack}>

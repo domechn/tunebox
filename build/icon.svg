@@ -75,10 +75,11 @@
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
     <clipPath id="iconClip">
-      <rect width="1024" height="1024" rx="200" ry="200"/>
+      <rect width="1024" height="1024" rx="225" ry="225"/>
     </clipPath>
   </defs>
 
+  <g transform="translate(102.4, 102.4) scale(0.8)">
   <!-- ── Base: rounded square with wood grain ── -->
   <g clip-path="url(#iconClip)">
     <rect width="1024" height="1024" fill="url(#woodBase)"/>
@@ -249,5 +250,6 @@
     <circle cx="512" cy="830" r="32" fill="none" stroke="#e8c060" stroke-width="3" opacity="0.6"/>
     <!-- Play triangle -->
     <polygon points="502,814 502,846 528,830" fill="#1a0c04" opacity="0.8"/>
+  </g>
   </g>
 </svg>

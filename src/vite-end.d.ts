@@ -11,7 +11,10 @@ interface ElectronApi {
 	onYouTubeMusicState: (callback: (state: {
 		title: string; artist: string; thumbnail: string
 		isPlaying: boolean; currentTime: number; duration: number
+		videoEnded: boolean
 		lyrics: string; currentLyric: string
+		recommendedTracks?: Array<{ title: string; artist?: string; url?: string; thumbnail?: string }>
+		allPlaylists?: Array<{ title: string; tracks: Array<{ title: string; artist?: string; url?: string; thumbnail?: string }> }>
 	}) => void) => (() => void) | void
 	sendCommand: (command: string, data?: any) => Promise<{ ok: boolean; error?: string }>
 	logout: () => Promise<{ ok: boolean }>
@@ -27,7 +30,7 @@ declare namespace JSX {
 		webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
 			src?: string
 			partition?: string
-			allowpopups?: string
+			allowpopups?: boolean
 			webpreferences?: string
 		}
 	}

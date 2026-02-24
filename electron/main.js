@@ -5,6 +5,12 @@ const fs = require('fs')
 let mainWindow
 let loginWindow
 let ytWebContents = null
+let webviewWebContents = null   // Always the renderer's webview (for recommendations)
+let activeExtraWin = null       // Hidden BrowserWindow currently playing (after preload swap)
+let preloadWin = null           // Hidden BrowserWindow preloading next track
+let preloadUrl = null           // URL being preloaded
+let preloadReady = false        // Preload video is buffered and paused
+let lastKnownVolume = 0.7      // Last setVolume value (0-1), for preload window setup
 
 const YTMUSIC_URL = 'https://music.youtube.com'
 const YTMUSIC_PARTITION = 'persist:youtube-music'
@@ -147,6 +153,75 @@ function resolveRendererEntry() {
   return { type: 'url', value: devUrl }
 }
 
+// ─── Preload helpers ──────────────────────────────────────────────
+
+function createHiddenPlaybackWindow() {
+  const win = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 600,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      partition: YTMUSIC_PARTITION,
+      webSecurity: true
+    }
+  })
+  win.webContents.setUserAgent(USER_AGENT)
+  return win
+}
+
+// Inject control scripts + volume interception + video event listeners into a webContents.
+// Called on the renderer's webview (dom-ready) and on preload windows.
+function setupPlaybackScripts(wc) {
+  const controlScript = fs.readFileSync(path.join(__dirname, 'ytmusic-control.js'), 'utf8')
+  wc.executeJavaScript(controlScript)
+
+  wc.executeJavaScript(`
+    (function() {
+      if (typeof window.__tuneboxDesiredVolume === 'undefined') {
+        window.__tuneboxDesiredVolume = null;
+      }
+      if (typeof window.__tuneboxSelfSetting === 'undefined') {
+        window.__tuneboxSelfSetting = false;
+      }
+      var origDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume');
+      if (origDescriptor && !HTMLMediaElement.prototype.__tuneboxIntercepted) {
+        HTMLMediaElement.prototype.__tuneboxIntercepted = true;
+        Object.defineProperty(HTMLMediaElement.prototype, 'volume', {
+          get: origDescriptor.get,
+          set: function(v) {
+            if (!window.__tuneboxSelfSetting && window.__tuneboxDesiredVolume !== null) {
+              origDescriptor.set.call(this, window.__tuneboxDesiredVolume);
+            } else {
+              origDescriptor.set.call(this, v);
+            }
+          },
+          configurable: true
+        });
+      }
+      function enforceVolume(video) {
+        if (window.__tuneboxDesiredVolume === null) return;
+        window.__tuneboxSelfSetting = true;
+        try { video.volume = window.__tuneboxDesiredVolume; } finally { window.__tuneboxSelfSetting = false; }
+      }
+      function setupVideoListeners() {
+        var video = document.querySelector('video');
+        if (!video) return;
+        if (video.__tuneboxListenersSet) return;
+        video.__tuneboxListenersSet = true;
+        video.addEventListener('ended', function() { window.__tuneboxVideoEnded = true; });
+        video.addEventListener('play', function() { window.__tuneboxVideoEnded = false; enforceVolume(video); });
+        video.addEventListener('loadeddata', function() { enforceVolume(video); });
+        video.addEventListener('canplay', function() { enforceVolume(video); });
+        enforceVolume(video);
+      }
+      setupVideoListeners();
+      setInterval(setupVideoListeners, 3000);
+    })()
+  `)
+}
+
 function createWindow() {
   const appIconPath = resolveAppIconPath()
 
@@ -184,29 +259,37 @@ function createWindow() {
     mainWindow.webContents.openDevTools()
   }
 
+  let activePollTimer = null
+
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
     ytWebContents = webContents
-    webContents.on('destroyed', () => { ytWebContents = null })
+    webviewWebContents = webContents
+    webContents.on('destroyed', () => {
+      if (ytWebContents === webContents) ytWebContents = null
+      if (webviewWebContents === webContents) webviewWebContents = null
+    })
     webContents.on('dom-ready', () => {
-      const controlScript = fs.readFileSync(
-        path.join(__dirname, 'ytmusic-control.js'),
-        'utf8'
-      )
-      webContents.executeJavaScript(controlScript)
+      // Clear any previous poll timer to avoid duplicates on page reload
+      if (activePollTimer) {
+        clearInterval(activePollTimer)
+        activePollTimer = null
+      }
+
+      setupPlaybackScripts(webContents)
 
       // Poll player state via executeJavaScript and forward to renderer over IPC.
       // window.parent.postMessage does NOT cross Electron's OOPIF process boundary,
       // so this is the only reliable way to get data back from the webview.
-      let lastPollTitle = ''
-      let lyricsActivated = false
+      let recsPollCounter = 0
 
       const pollTimer = setInterval(async () => {
         if (!mainWindow || mainWindow.isDestroyed()) {
           clearInterval(pollTimer)
           return
         }
+        if (!ytWebContents || ytWebContents.isDestroyed()) return
         try {
-          const state = await webContents.executeJavaScript(`
+          const state = await ytWebContents.executeJavaScript(`
             (function() {
               try {
                 var video = document.querySelector('video');
@@ -239,50 +322,116 @@ function createWindow() {
                 }
 
                 var normalized = function(text) {
-                  return (text || '').replace(/\s+/g, '').toLowerCase();
-                };
-
-                var guessYouLikeNames = ['猜你喜欢', 'for you', 'recommended for you', 'mixed for you'];
-                var isGuessYouLikeTitle = function(text) {
-                  var normalizedText = normalized(text);
-                  if (!normalizedText) return false;
-                  return guessYouLikeNames.some(function(name) {
-                    return normalizedText.indexOf(normalized(name)) !== -1;
-                  });
+                  return (text || '').replace(/\\s+/g, '').toLowerCase();
                 };
 
                 var pickText = function(el) {
                   return el ? (el.textContent || '').trim() : '';
                 };
 
-                var shelf = null;
-                var shelfTitles = Array.from(document.querySelectorAll('ytmusic-shelf-renderer h2, ytmusic-shelf-renderer .title, ytmusic-carousel-shelf-renderer h2, ytmusic-carousel-shelf-renderer .title'));
-                for (var i = 0; i < shelfTitles.length; i++) {
-                  if (isGuessYouLikeTitle(shelfTitles[i].textContent)) {
-                    shelf = shelfTitles[i].closest('ytmusic-shelf-renderer, ytmusic-carousel-shelf-renderer');
-                    if (shelf) break;
+                // ── Scrape ALL homepage shelves (not only 猜你喜欢) ──
+                var allPlaylists = [];
+                var shelves = Array.from(document.querySelectorAll('ytmusic-shelf-renderer, ytmusic-carousel-shelf-renderer'));
+                for (var k = 0; k < shelves.length; k++) {
+                  var shelfRoot = shelves[k];
+                  var shelfTitleEl = shelfRoot.querySelector('h2, .title, yt-formatted-string.title');
+                  var shelfTitle = pickText(shelfTitleEl) || 'Untitled Shelf';
+                  var shelfItems = Array.from(shelfRoot.querySelectorAll(
+                    'ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer, ytmusic-compact-station-renderer'
+                  ));
+                  var tracksInShelf = [];
+
+                  for (var m = 0; m < shelfItems.length; m++) {
+                    var shelfItem = shelfItems[m];
+                    var shelfItemTitle = pickText(shelfItem.querySelector('#title, .title, yt-formatted-string.title, a[title], a#video-title'));
+                    var shelfItemArtist = pickText(shelfItem.querySelector('#subtitle, .subtitle, .byline, yt-formatted-string.subtitle, .details'));
+                    var shelfItemLink = shelfItem.querySelector('a[href*="watch"], a[href*="playlist"], a[href*="browse"], a[href]');
+                    var shelfItemThumb = shelfItem.querySelector('img');
+
+                    if (!shelfItemTitle && shelfItemLink) {
+                      shelfItemTitle = shelfItemLink.getAttribute('title') || pickText(shelfItemLink);
+                    }
+                    // Only include items with a direct watch?v= link (actual songs)
+                    if (!shelfItemTitle) continue;
+                    var shelfItemUrl = shelfItemLink ? shelfItemLink.href : '';
+                    if (shelfItemUrl && shelfItemUrl.indexOf('watch') === -1) continue;
+
+                    tracksInShelf.push({
+                      title: shelfItemTitle,
+                      artist: shelfItemArtist,
+                      url: shelfItemUrl,
+                      thumbnail: shelfItemThumb ? (shelfItemThumb.src || '') : ''
+                    });
                   }
-                }
 
-                var recommendedTracks = [];
-                if (shelf) {
-                  var items = Array.from(shelf.querySelectorAll('ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer'));
-                  for (var j = 0; j < items.length; j++) {
-                    var item = items[j];
-                    var itemTitle = pickText(item.querySelector('#title, .title, yt-formatted-string.title'));
-                    var itemArtist = pickText(item.querySelector('#subtitle, .subtitle, .byline, yt-formatted-string.subtitle'));
-                    var itemLink = item.querySelector('a[href*="watch"], a[href*="playlist"], a[href]');
-                    var itemThumb = item.querySelector('img');
+                  // Deduplicate by URL/title
+                  var deduped = [];
+                  var seen = new Set();
+                  for (var n = 0; n < tracksInShelf.length; n++) {
+                    var trackKey = (tracksInShelf[n].url || '') + '|' + normalized(tracksInShelf[n].title || '');
+                    if (seen.has(trackKey)) continue;
+                    seen.add(trackKey);
+                    deduped.push(tracksInShelf[n]);
+                  }
 
-                    if (!itemTitle) continue;
-                    recommendedTracks.push({
-                      title: itemTitle,
-                      artist: itemArtist,
-                      url: itemLink ? itemLink.href : '',
-                      thumbnail: itemThumb ? (itemThumb.src || '') : ''
+                  if (deduped.length > 0) {
+                    allPlaylists.push({
+                      title: shelfTitle,
+                      tracks: deduped
                     });
                   }
                 }
+
+                // ── Scrape "Up Next" / autoplay queue (watch page) ──
+                var upNextTracks = [];
+                var queueItems = Array.from(document.querySelectorAll(
+                  'ytmusic-player-queue-item, '
+                  + 'ytmusic-queue #contents ytmusic-responsive-list-item-renderer, '
+                  + '#automix-contents ytmusic-responsive-list-item-renderer, '
+                  + '#queue-content ytmusic-responsive-list-item-renderer, '
+                  + 'ytmusic-tab-renderer[page-type="MUSIC_PAGE_TYPE_QUEUE"] ytmusic-responsive-list-item-renderer'
+                ));
+                for (var qi = 0; qi < queueItems.length; qi++) {
+                  var qItem = queueItems[qi];
+                  var qTitle = pickText(qItem.querySelector('.song-title, .title, yt-formatted-string.title, a[title]'));
+                  var qArtist = pickText(qItem.querySelector('.byline, .subtitle, .secondary-flex-columns yt-formatted-string'));
+                  var qThumb = qItem.querySelector('img');
+                  // Extract videoId from the queue item's data or link
+                  var qUrl = '';
+                  var qLink = qItem.querySelector('a[href*="watch"]');
+                  if (qLink) {
+                    qUrl = qLink.href;
+                  } else {
+                    // ytmusic-player-queue-item stores videoId in attributes or data
+                    var qVideoId = qItem.getAttribute('video-id')
+                                || (qItem.__data && qItem.__data.data && qItem.__data.data.videoId)
+                                || '';
+                    if (qVideoId) qUrl = 'https://music.youtube.com/watch?v=' + qVideoId;
+                  }
+                  if (!qTitle || !qUrl) continue;
+                  upNextTracks.push({
+                    title: qTitle,
+                    artist: qArtist,
+                    url: qUrl,
+                    thumbnail: qThumb ? (qThumb.src || '') : ''
+                  });
+                }
+                // Dedup up-next
+                if (upNextTracks.length > 0) {
+                  var unSeen = new Set();
+                  upNextTracks = upNextTracks.filter(function(t) {
+                    var key = (t.url || '') + '|' + normalized(t.title || '');
+                    if (unSeen.has(key)) return false;
+                    unSeen.add(key);
+                    return true;
+                  });
+                }
+
+                // Combine recommendedTracks from the first shelf that has any (legacy compat)
+                var recommendedTracks = allPlaylists.length > 0 ? allPlaylists[0].tracks : [];
+
+                var videoEnded = !!(window.__tuneboxVideoEnded);
+                if (videoEnded) window.__tuneboxVideoEnded = false;
 
                 var stateObj = {
                   title:     titleEl  ? titleEl.textContent.trim()  : '',
@@ -291,21 +440,74 @@ function createWindow() {
                   isPlaying: isPlaying,
                   currentTime: ct,
                   duration: dur,
-                  recommendedTracks: recommendedTracks
+                  videoEnded: videoEnded,
+                  recommendedTracks: recommendedTracks,
+                  allPlaylists: allPlaylists,
+                  upNextTracks: upNextTracks
                 };
-                console.log('YTMusic State:', stateObj);
                 return stateObj;
               } catch(e) { return null; }
             })()
           `)
+          // Periodically merge homepage recommendations from the webview when
+          // playback source has been swapped to a hidden preload window
+          if (state && webviewWebContents && webviewWebContents !== ytWebContents && !webviewWebContents.isDestroyed()) {
+            recsPollCounter++
+            if (recsPollCounter % 3 === 0) {
+              try {
+                const recsState = await webviewWebContents.executeJavaScript(`
+                  (function() {
+                    try {
+                      var pickText = function(el) { return el ? (el.textContent || '').trim() : '' };
+                      var normalized = function(text) { return (text || '').replace(/\\s+/g, '').toLowerCase() };
+                      var allPlaylists = [];
+                      var shelves = Array.from(document.querySelectorAll('ytmusic-shelf-renderer, ytmusic-carousel-shelf-renderer'));
+                      for (var k = 0; k < shelves.length; k++) {
+                        var shelfRoot = shelves[k];
+                        var shelfTitleEl = shelfRoot.querySelector('h2, .title, yt-formatted-string.title');
+                        var shelfTitle = pickText(shelfTitleEl) || 'Untitled Shelf';
+                        var shelfItems = Array.from(shelfRoot.querySelectorAll(
+                          'ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer, ytmusic-compact-station-renderer'
+                        ));
+                        var tracksInShelf = [];
+                        for (var m = 0; m < shelfItems.length; m++) {
+                          var item = shelfItems[m];
+                          var iTitle = pickText(item.querySelector('#title, .title, yt-formatted-string.title, a[title], a#video-title'));
+                          var iArtist = pickText(item.querySelector('#subtitle, .subtitle, .byline, yt-formatted-string.subtitle, .details'));
+                          var iLink = item.querySelector('a[href*="watch"]');
+                          var iThumb = item.querySelector('img');
+                          if (!iTitle) continue;
+                          var iUrl = iLink ? iLink.href : '';
+                          if (iUrl && iUrl.indexOf('watch') === -1) continue;
+                          tracksInShelf.push({ title: iTitle, artist: iArtist, url: iUrl, thumbnail: iThumb ? (iThumb.src || '') : '' });
+                        }
+                        if (tracksInShelf.length > 0) allPlaylists.push({ title: shelfTitle, tracks: tracksInShelf });
+                      }
+                      return { allPlaylists: allPlaylists };
+                    } catch(e) { return null; }
+                  })()
+                `)
+                if (recsState && Array.isArray(recsState.allPlaylists) && recsState.allPlaylists.length > 0) {
+                  state.allPlaylists = [...(state.allPlaylists || []), ...recsState.allPlaylists]
+                  if (!state.recommendedTracks || state.recommendedTracks.length === 0) {
+                    state.recommendedTracks = recsState.allPlaylists[0].tracks || []
+                  }
+                }
+              } catch (_recsErr) { /* webview navigating or not ready */ }
+            }
+          }
+
           if (state && mainWindow && !mainWindow.isDestroyed()) {
-            // console.log('YTMusic State:', state);
             mainWindow.webContents.send('ytmusic-state', state)
           }
         } catch (_) { /* page navigating or destroyed */ }
       }, 1000)
 
-      webContents.on('destroyed', () => clearInterval(pollTimer))
+      activePollTimer = pollTimer
+      webContents.on('destroyed', () => {
+        clearInterval(pollTimer)
+        if (activePollTimer === pollTimer) activePollTimer = null
+      })
     })
   })
 
@@ -401,7 +603,19 @@ function registerIpcHandlers() {
     // Clear session cookies/storage for the YouTube Music partition
     try {
       const ytSession = session.fromPartition(YTMUSIC_PARTITION)
-      await ytSession.clearStorageData()
+      await ytSession.clearStorageData({
+        storages: [
+          'cookies',
+          'filesystem',
+          'indexdb',
+          'localstorage',
+          'shadercache',
+          'websql',
+          'serviceworkers',
+          'cachestorage'
+        ]
+      })
+      await ytSession.clearCache()
     } catch (_) {}
     return { ok: true }
   })
@@ -478,12 +692,168 @@ function registerIpcHandlers() {
           break
         case 'setVolume':
           if (data && typeof data.volume === 'number') {
+            const vol01 = data.volume / 100
+            lastKnownVolume = vol01
             await ytWebContents.executeJavaScript(`
               (function() {
+                window.__tuneboxDesiredVolume = ${vol01};
                 var v = document.querySelector('video');
-                if (v) v.volume = ${data.volume / 100};
+                if (v) {
+                  window.__tuneboxSelfSetting = true;
+                  try { v.volume = ${vol01}; } finally { window.__tuneboxSelfSetting = false; }
+                }
               })()
             `)
+          }
+          break
+        case 'playTrack':
+          if (data && data.url) {
+            // Check if this URL was preloaded and is ready
+            if (preloadReady && preloadUrl === data.url && preloadWin && !preloadWin.isDestroyed()) {
+              // ── Swap to preloaded window (instant playback) ──
+              // 1. Mute and pause old active source
+              if (ytWebContents && !ytWebContents.isDestroyed()) {
+                ytWebContents.setAudioMuted(true)
+                ytWebContents.executeJavaScript('var v=document.querySelector("video");if(v)v.pause();').catch(() => {})
+              }
+              // 2. Destroy previous hidden playback window if any
+              if (activeExtraWin && !activeExtraWin.isDestroyed()) {
+                activeExtraWin.destroy()
+              }
+              // 3. Promote preloaded window to active
+              activeExtraWin = preloadWin
+              ytWebContents = preloadWin.webContents
+              preloadWin = null
+              preloadUrl = null
+              preloadReady = false
+              // 4. Unmute and resume playback with correct volume
+              ytWebContents.setAudioMuted(false)
+              const swapVol = lastKnownVolume
+              await ytWebContents.executeJavaScript(`
+                (function() {
+                  window.__tuneboxDesiredVolume = ${swapVol};
+                  window.__tuneboxSelfSetting = true;
+                  var v = document.querySelector('video');
+                  if (v) {
+                    try { v.volume = ${swapVol}; } finally { window.__tuneboxSelfSetting = false; }
+                    v.play();
+                  }
+                })()
+              `)
+              // 5. Navigate the old webview back to homepage for recommendations
+              if (webviewWebContents && webviewWebContents !== ytWebContents && !webviewWebContents.isDestroyed()) {
+                webviewWebContents.setAudioMuted(true)
+                webviewWebContents.loadURL('https://music.youtube.com').catch(() => {})
+              }
+            } else {
+              // ── Normal navigation (preload miss) ──
+              // Cancel stale preload if URL doesn't match
+              if (preloadWin && !preloadWin.isDestroyed() && preloadUrl !== data.url) {
+                preloadWin.destroy()
+                preloadWin = null
+                preloadUrl = null
+                preloadReady = false
+              }
+              const safeUrl = JSON.stringify(data.url)
+              // 1. Immediately pause current playback & clear ended flag
+              await ytWebContents.executeJavaScript(`
+                (function() {
+                  var v = document.querySelector('video');
+                  if (v) v.pause();
+                  window.__tuneboxVideoEnded = false;
+                })()
+              `)
+              // 2. Navigate to the new track
+              await ytWebContents.executeJavaScript(`
+                (function() {
+                  var url = ${safeUrl};
+                  var match = url.match(/[?&]v=([^&]+)/);
+                  if (match) {
+                    var videoId = match[1];
+                    var watchPath = '/watch?v=' + videoId;
+                    var fullUrl = 'https://music.youtube.com' + watchPath;
+                    var app = document.querySelector('ytmusic-app');
+                    if (app && typeof app.navigate_ === 'function') {
+                      app.navigate_(watchPath);
+                      setTimeout(function() {
+                        var v = document.querySelector('video');
+                        if (!v || v.paused) window.location.href = fullUrl;
+                      }, 5000);
+                      return;
+                    }
+                    var router = document.querySelector('yt-navigation-manager');
+                    if (router && typeof router.navigate === 'function') {
+                      router.navigate(watchPath);
+                      setTimeout(function() {
+                        var v = document.querySelector('video');
+                        if (!v || v.paused) window.location.href = fullUrl;
+                      }, 5000);
+                      return;
+                    }
+                    window.location.href = fullUrl;
+                  } else {
+                    window.location.href = url;
+                  }
+                })()
+              `)
+            }
+          }
+          break
+        case 'preloadTrack':
+          if (data && data.url) {
+            // Destroy existing preload window if any
+            if (preloadWin && !preloadWin.isDestroyed()) {
+              preloadWin.destroy()
+            }
+            preloadReady = false
+            preloadUrl = data.url
+            preloadWin = createHiddenPlaybackWindow()
+            preloadWin.webContents.setAudioMuted(true)
+            const preloadTarget = preloadWin
+            preloadWin.webContents.on('dom-ready', () => {
+              if (preloadTarget.isDestroyed()) return
+              setupPlaybackScripts(preloadTarget.webContents)
+              // Set volume to match current playback
+              const pvol = lastKnownVolume
+              preloadTarget.webContents.executeJavaScript(`
+                (function() {
+                  window.__tuneboxDesiredVolume = ${pvol};
+                })()
+              `).catch(() => {})
+              // Wait for video to buffer, then pause it
+              let attempts = 0
+              const checkInterval = setInterval(async () => {
+                attempts++
+                if (preloadTarget.isDestroyed()) { clearInterval(checkInterval); return }
+                try {
+                  const ready = await preloadTarget.webContents.executeJavaScript(`
+                    (function() {
+                      var v = document.querySelector('video');
+                      if (v && v.readyState >= 3) {
+                        v.pause();
+                        return true;
+                      }
+                      return false;
+                    })()
+                  `)
+                  if (ready) {
+                    clearInterval(checkInterval)
+                    preloadReady = true
+                  }
+                } catch(e) { clearInterval(checkInterval) }
+                if (attempts > 30) clearInterval(checkInterval) // 15s timeout
+              }, 500)
+            })
+            preloadWin.loadURL(data.url)
+          }
+          break
+        case 'refreshPage':
+          // Navigate the webview (not the active playback source) to refresh recommendations
+          if (webviewWebContents && !webviewWebContents.isDestroyed()) {
+            webviewWebContents.setAudioMuted(true)
+            await webviewWebContents.loadURL('https://music.youtube.com')
+          } else if (ytWebContents && !ytWebContents.isDestroyed()) {
+            await ytWebContents.loadURL('https://music.youtube.com')
           }
           break
       }

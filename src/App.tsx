@@ -1,5 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { VintageRadio } from '@/components/player/VintageRadio'
+import { PlaylistDebugPage } from '@/components/debug/PlaylistDebugPage'
+import { useYouTubeMusic } from '@/hooks/use-youtube-music'
 import type { YouTubeEmbedElement } from '@/hooks/use-youtube-music'
 import { Power } from '@phosphor-icons/react'
 
@@ -8,21 +10,28 @@ function App() {
   const [showLogin, setShowLogin] = useState(true)
   const [isCheckingAuth, setIsCheckingAuth] = useState(false)
   const [authCapturedAt, setAuthCapturedAt] = useState<string | null>(null)
+  const [routeHash, setRouteHash] = useState(() => window.location.hash || '#/')
   const playerRef = useRef<YouTubeEmbedElement | null>(null)
+  const ytMusic = useYouTubeMusic(playerRef)
   const isElectron = typeof window !== 'undefined' && typeof (window as Window & { electron?: unknown }).electron !== 'undefined'
+  const isDev = import.meta.env.DEV
+  const isDebugPage = isDev && routeHash === '#/debug'
 
   const YOUTUBE_MUSIC_URL = 'https://music.youtube.com'
 
   useEffect(() => {
     const handleOnline  = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
+    const handleHashChange = () => setRouteHash(window.location.hash || '#/')
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+    window.addEventListener('hashchange', handleHashChange)
 
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('hashchange', handleHashChange)
     }
   }, [])
 
@@ -67,9 +76,9 @@ function App() {
 
   const handleLogout = async () => {
     if (isElectron && window.electron?.logout) {
-      await window.electron.logout()
       setShowLogin(true)
       setAuthCapturedAt(null)
+      await window.electron.logout()
     }
   }
 
@@ -96,6 +105,15 @@ function App() {
     }, 2000)
   }
 
+  const openDebugPage = () => {
+    if (!isDev) return
+    window.location.hash = '/debug'
+  }
+
+  const backToPlayerPage = () => {
+    window.location.hash = '/'
+  }
+
   return (
     <div className="relative w-full h-screen overflow-hidden rounded-[32px] bg-transparent">
       {showLogin ? (
@@ -108,7 +126,13 @@ function App() {
 
           {/* Top Bar */}
           <div className="top-bar">
-            <div style={{ width: 26 }}></div>
+            {isDev ? (
+              <button className="physical-btn" onClick={openDebugPage} title="Debug">
+                D
+              </button>
+            ) : (
+              <div style={{ width: 26 }}></div>
+            )}
             <div className="app-brand">
               <span className="app-brand-text">TuneBox</span>
             </div>
@@ -148,7 +172,7 @@ function App() {
               src={YOUTUBE_MUSIC_URL}
               className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
               partition="persist:youtube-music"
-              allowpopups="true"
+              allowpopups={true}
               webpreferences="contextIsolation=yes"
             />
           ) : (
@@ -190,7 +214,17 @@ function App() {
             </div>
           )}
 
-          <VintageRadio playerRef={playerRef} onExit={handleExit} onLogout={handleLogout} />
+          {isDebugPage ? (
+            <PlaylistDebugPage ytMusic={ytMusic} onBack={backToPlayerPage} />
+          ) : (
+            <VintageRadio
+              ytMusic={ytMusic}
+              onExit={handleExit}
+              onLogout={handleLogout}
+              showDebugButton={isDev}
+              onOpenDebug={openDebugPage}
+            />
+          )}
         </>
       )}
       <div className="player-shell-shadow" />
