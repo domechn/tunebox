@@ -33,7 +33,9 @@
     "files": [
       "main.js",
       "preload.js",
+      "scripts.js",
       "ytmusic-control.js",
+      "injection/**",
       "!**/node_modules/**",
       "!../node_modules/**",
       "package.json"
