@@ -776,6 +776,9 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
   // 3b. Preemptive auto-advance a split-second before ending.
   // This avoids briefly hearing YT Music's own autoplay queue track.
+  // Strategy: ~1.2s before the end, PAUSE FIRST (with retries to ensure it takes effect),
+  // then navigate to our next track after a short delay. This guarantees no audio bleed
+  // from YT Music's own queue even if our navigation has a slight delay.
   useEffect(() => {
     if (!playbackState.isPlaying) return
     if (navigationCooldownRef.current) return
@@ -783,17 +786,37 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
     const remaining = playbackState.duration - playbackState.currentTime
 
-    if (remaining > 1.2 || playbackState.currentTime < 2) {
+    // Reset arm when well away from the end
+    if (remaining > 1.5 || playbackState.currentTime < 2) {
       endSwitchArmedRef.current = false
       return
     }
 
-    if (remaining <= 0.35 && remaining >= -0.1 && !endSwitchArmedRef.current) {
+    if (remaining <= 1.2 && !endSwitchArmedRef.current) {
       endSwitchArmedRef.current = true
       autoAdvanceGuardRef.current++
-      playNextFromPlaylist()
+
+      // Step 1: Immediately send pauseBeforeTrackEnd — this mutes+pauses at the
+      // main-process level and sets __tuneboxAwaitingOurNavigation=true so that
+      // when the song's 'ended' event fires YT Music cannot play its own next track.
+      sendCommand('pauseBeforeTrackEnd')
+
+      // Retry the pause command a few times to make it robust against timing races.
+      const pauseRetryDelays = [150, 350, 600]
+      for (const delay of pauseRetryDelays) {
+        window.setTimeout(() => {
+          if (endSwitchArmedRef.current) sendCommand('pauseBeforeTrackEnd')
+        }, delay)
+      }
+
+      // Step 2: After pause has had time to settle, switch to our next playlist track.
+      // 700ms gives the pause retries time to run while still switching well before
+      // the song would naturally end.
+      window.setTimeout(() => {
+        playNextFromPlaylist()
+      }, 700)
     }
-  }, [playbackState.isPlaying, playbackState.currentTime, playbackState.duration, playNextFromPlaylist])
+  }, [playbackState.isPlaying, playbackState.currentTime, playbackState.duration, playNextFromPlaylist, sendCommand])
 
   // 4. Detect title change — if YT Music auto-advanced on its own,
   //    redirect to our next playlist song

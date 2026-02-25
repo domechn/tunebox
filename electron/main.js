@@ -1,6 +1,7 @@
 const { app, BrowserWindow, session, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const { getScript } = require('./scripts')
 
 let mainWindow
 let loginWindow
@@ -205,15 +206,7 @@ function silenceWebContents(wc) {
   if (!wc || wc.isDestroyed()) return
   try {
     wc.setAudioMuted(true)
-    wc.executeJavaScript(`
-      (function() {
-        var v = document.querySelector('video');
-        if (v) {
-          v.muted = true;
-          try { v.pause(); } catch (_) {}
-        }
-      })()
-    `).catch(() => {})
+    wc.executeJavaScript(getScript('silence-video')).catch(() => {})
   } catch (_) {}
 }
 
@@ -269,16 +262,7 @@ function pauseAllKnownPlaybackSources() {
     try {
       diagLog('pauseAllKnownPlaybackSources:pausingWc', { wcId: wc.id })
       wc.setAudioMuted(true)
-      wc.executeJavaScript(`
-        (function() {
-          window.__tuneboxAwaitingOurNavigation = false;
-          var v = document.querySelector('video');
-          if (v) {
-            v.muted = true;
-            try { v.pause(); } catch (_) {}
-          }
-        })()
-      `).catch(() => {})
+      wc.executeJavaScript(getScript('pause-all-sources')).catch(() => {})
     } catch (_) {}
   }
   diagLog('pauseAllKnownPlaybackSources:done')
@@ -293,109 +277,7 @@ function setupPlaybackScripts(wc, initialVolume) {
   wc.executeJavaScript(controlScript)
 
   const seedVolume = (typeof initialVolume === 'number') ? initialVolume : null
-
-  wc.executeJavaScript(`
-    (function() {
-      var seedVol = ${JSON.stringify(seedVolume)};
-      if (typeof window.__tuneboxDesiredVolume === 'undefined' || window.__tuneboxDesiredVolume === null) {
-        window.__tuneboxDesiredVolume = seedVol;
-      }
-      if (typeof window.__tuneboxSelfSetting === 'undefined') {
-        window.__tuneboxSelfSetting = false;
-      }
-      var origDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume');
-      if (origDescriptor && !HTMLMediaElement.prototype.__tuneboxIntercepted) {
-        HTMLMediaElement.prototype.__tuneboxIntercepted = true;
-        Object.defineProperty(HTMLMediaElement.prototype, 'volume', {
-          get: origDescriptor.get,
-          set: function(v) {
-            if (!window.__tuneboxSelfSetting && window.__tuneboxDesiredVolume !== null) {
-              origDescriptor.set.call(this, window.__tuneboxDesiredVolume);
-            } else {
-              origDescriptor.set.call(this, v);
-            }
-          },
-          configurable: true
-        });
-      }
-      function enforceVolume(video) {
-        if (window.__tuneboxDesiredVolume === null) return;
-        window.__tuneboxSelfSetting = true;
-        try { video.volume = window.__tuneboxDesiredVolume; } finally { window.__tuneboxSelfSetting = false; }
-      }
-      if (typeof window.__tuneboxAwaitingOurNavigation === 'undefined') {
-        window.__tuneboxAwaitingOurNavigation = false;
-      }
-      if (typeof window.__tuneboxIgnoreEndedUntil === 'undefined') {
-        window.__tuneboxIgnoreEndedUntil = 0;
-      }
-      function setupVideoListeners() {
-        var video = document.querySelector('video');
-        if (!video) return;
-        // If we're awaiting our own navigation command, keep any video silent
-        if (window.__tuneboxAwaitingOurNavigation) {
-          video.muted = true;
-          try { video.pause(); } catch(e) {}
-        }
-        if (video.__tuneboxListenersSet) return;
-        video.__tuneboxListenersSet = true;
-        video.addEventListener('ended', function() {
-          if (Date.now() < (window.__tuneboxIgnoreEndedUntil || 0)) {
-            return;
-          }
-          // Immediately mute & pause so YT Music's own autoplay queue
-          // cannot be heard while we wait for the IPC poll to fire.
-          video.muted = true;
-          video.pause();
-          window.__tuneboxVideoEnded = true;
-          window.__tuneboxAwaitingOurNavigation = true;
-          // Signal main process immediately (faster than polling)
-          console.log('__TUNEBOX_VIDEO_ENDED__');
-        });
-        video.addEventListener('play', function() {
-          if (window.__tuneboxAwaitingOurNavigation) {
-            // YT Music auto-advanced — suppress until our app navigates
-            video.muted = true;
-            try { video.pause(); } catch(e) {}
-            return;
-          }
-          window.__tuneboxVideoEnded = false;
-          video.muted = false;
-          enforceVolume(video);
-        });
-        video.addEventListener('loadstart', function() {
-          if (window.__tuneboxAwaitingOurNavigation) {
-            video.muted = true;
-          }
-        });
-        video.addEventListener('loadeddata', function() {
-          if (window.__tuneboxAwaitingOurNavigation) {
-            video.muted = true;
-            try { video.pause(); } catch(e) {}
-            return;
-          }
-          enforceVolume(video);
-        });
-        video.addEventListener('canplay', function() {
-          if (window.__tuneboxAwaitingOurNavigation) {
-            video.muted = true;
-            try { video.pause(); } catch(e) {}
-            return;
-          }
-          enforceVolume(video);
-        });
-        // Re-enforce volume whenever YT Music tries to change it
-        video.addEventListener('volumechange', function() {
-          if (!window.__tuneboxSelfSetting && window.__tuneboxDesiredVolume !== null && !window.__tuneboxAwaitingOurNavigation) {
-            enforceVolume(video);
-          }
-        });
-        enforceVolume(video);
-      }
-      setupVideoListeners();
-      setInterval(setupVideoListeners, 2000);
-    })()
-  `)
+  wc.executeJavaScript(getScript('setup-playback', { SEED_VOLUME: seedVolume }))
 }
 
 function createWindow() {
@@ -460,95 +342,7 @@ function createWindow() {
       // On the very first load of this session, clear any queue left from a previous session.
       if (!queueClearedOnStartup) {
         queueClearedOnStartup = true
-        webContents.executeJavaScript(`
-          (function() {
-            function clearYTMusicQueue() {
-              // Method 1: Polymer player queue API
-              try {
-                var playerBar = document.querySelector('ytmusic-player-bar');
-                if (playerBar) {
-                  var queue = playerBar.queue;
-                  if (queue) {
-                    if (typeof queue.clearQueueAsync_ === 'function') {
-                      queue.clearQueueAsync_({});
-                      console.log('[TuneBox] Queue cleared via clearQueueAsync_');
-                      return;
-                    }
-                    if (typeof queue.clearQueue === 'function') {
-                      queue.clearQueue();
-                      console.log('[TuneBox] Queue cleared via clearQueue()');
-                      return;
-                    }
-                    if (Array.isArray(queue.items_)) {
-                      queue.items_ = [];
-                      queue.notifyPath && queue.notifyPath('items_');
-                      console.log('[TuneBox] Queue cleared by emptying items_');
-                      return;
-                    }
-                  }
-                }
-              } catch (e) {}
-
-              // Method 2: YT Music app-level navigate to home (resets queue)
-              try {
-                var app = document.querySelector('ytmusic-app');
-                if (app && typeof app.navigate_ === 'function') {
-                  app.navigate_({ endpoint: { browseEndpoint: { browseId: 'FEmusic_home' } } });
-                  console.log('[TuneBox] Queue cleared via ytmusic-app navigate to home');
-                  return;
-                }
-              } catch (e) {}
-
-              // Method 3: Open queue panel and click "Clear queue" button
-              try {
-                var queueBtn = document.querySelector('#queue-button button') ||
-                               document.querySelector('ytmusic-player-bar tp-yt-paper-icon-button.queue-button') ||
-                               document.querySelector('ytmusic-player-bar [aria-label*="Queue"], ytmusic-player-bar [aria-label*="queue"]');
-                if (queueBtn) {
-                  var panel = document.querySelector('ytmusic-player-queue-panel[opened]') ||
-                             document.querySelector('#queue[opened]');
-                  if (!panel) {
-                    queueBtn.click();
-                    setTimeout(function() { clickClearQueueButton(); }, 600);
-                  } else {
-                    clickClearQueueButton();
-                  }
-                }
-              } catch (e) {}
-            }
-
-            function clickClearQueueButton() {
-              try {
-                // Look for a "..." overflow menu in the queue header
-                var moreBtn = document.querySelector(
-                  'ytmusic-player-queue-panel #more-button button, ' +
-                  'ytmusic-player-queue-panel .header-more-button button, ' +
-                  '#queue tp-yt-paper-icon-button[aria-label*="More"], ' +
-                  '#queue tp-yt-paper-icon-button[aria-label*="more"]'
-                );
-                if (moreBtn) {
-                  moreBtn.click();
-                  setTimeout(function() {
-                    var items = Array.from(document.querySelectorAll(
-                      'ytmusic-menu-service-item-renderer, tp-yt-paper-item'
-                    ));
-                    var clearItem = items.find(function(el) {
-                      var txt = (el.textContent || '').toLowerCase();
-                      return txt.indexOf('clear queue') !== -1 || txt.indexOf('清空队列') !== -1;
-                    });
-                    if (clearItem) {
-                      clearItem.click();
-                      console.log('[TuneBox] Queue cleared via Clear Queue button');
-                    }
-                  }, 400);
-                }
-              } catch (e) {}
-            }
-
-            // Run after YT Music finishes initializing
-            setTimeout(clearYTMusicQueue, 2500);
-          })()
-        `).catch(function() {})
+        webContents.executeJavaScript(getScript('clear-queue')).catch(function () {})
       }
 
       // Fast path: detect videoEnded via console-message (near-instant, no polling delay)
@@ -559,30 +353,7 @@ function createWindow() {
           // Proactively pause + mute before YT Music's own autoplay queue can bleed through.
           // Keep retrying a few times in case pause() gets ignored by the player.
           try {
-            await webContents.executeJavaScript(`
-              (function() {
-                try {
-                  window.__tuneboxAwaitingOurNavigation = true;
-                  window.__tuneboxIgnoreEndedUntil = Date.now() + 5000;
-                  var v = document.querySelector('video');
-                  if (!v) return;
-                  v.muted = true;
-                  try { v.pause(); } catch (_) {}
-                  var tries = 0;
-                  function retryPause() {
-                    tries++;
-                    v.muted = true;
-                    if (!v.paused) {
-                      try { v.pause(); } catch (_) {}
-                    }
-                    if (tries < 8) {
-                      setTimeout(retryPause, 120);
-                    }
-                  }
-                  setTimeout(retryPause, 120);
-                } catch (_) {}
-              })()
-            `)
+            await webContents.executeJavaScript(getScript('video-ended-retry'))
           } catch (_) {}
 
           mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
@@ -602,204 +373,14 @@ function createWindow() {
         const activePlaybackWc = getActivePlaybackWebContents()
         if (!activePlaybackWc || activePlaybackWc.isDestroyed()) return
         try {
-          const state = await activePlaybackWc.executeJavaScript(`
-            (function() {
-              try {
-                var video = document.querySelector('video');
-                var titleEl = document.querySelector('ytmusic-player-bar .title yt-formatted-string')
-                           || document.querySelector('.title.style-scope.ytmusic-player-bar');
-                var artistEl = document.querySelector('ytmusic-player-bar .byline yt-formatted-string a')
-                            || document.querySelector('.byline.style-scope.ytmusic-player-bar a')
-                            || document.querySelector('.byline.style-scope.ytmusic-player-bar');
-                var thumbEl = document.querySelector('ytmusic-player-bar img.image')
-                           || document.querySelector('.thumbnail img')
-                           || document.querySelector('#song-image img')
-                           || document.querySelector('ytmusic-player-bar img');
-                if (!thumbEl || !thumbEl.src) {
-                  var wrapper = document.querySelector('ytmusic-player-bar .image')
-                             || document.querySelector('.thumbnail.ytmusic-player-bar');
-                  if (wrapper) {
-                    thumbEl = wrapper.querySelector('img') || wrapper;
-                  }
-                }
-                var isPlaying = video ? !video.paused : false;
-                var ct = 0;
-                var dur = 0;
-                var progressBar = document.querySelector('#progress-bar') || document.querySelector('ytmusic-player-bar tp-yt-paper-slider');
-                if (progressBar) {
-                  ct = parseFloat(progressBar.getAttribute('value') || '0');
-                  dur = parseFloat(progressBar.getAttribute('aria-valuemax') || '0');
-                } else if (video) {
-                  ct = isFinite(video.currentTime) ? video.currentTime : 0;
-                  dur = isFinite(video.duration) ? video.duration : 0;
-                }
-
-                var normalized = function(text) {
-                  return (text || '').replace(/\\s+/g, '').toLowerCase();
-                };
-
-                var pickText = function(el) {
-                  return el ? (el.textContent || '').trim() : '';
-                };
-
-                // ── Scrape ALL homepage shelves (not only 猜你喜欢) ──
-                var allPlaylists = [];
-                var shelves = Array.from(document.querySelectorAll('ytmusic-shelf-renderer, ytmusic-carousel-shelf-renderer'));
-                for (var k = 0; k < shelves.length; k++) {
-                  var shelfRoot = shelves[k];
-                  var shelfTitleEl = shelfRoot.querySelector('h2, .title, yt-formatted-string.title');
-                  var shelfTitle = pickText(shelfTitleEl) || 'Untitled Shelf';
-                  var shelfItems = Array.from(shelfRoot.querySelectorAll(
-                    'ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer, ytmusic-compact-station-renderer'
-                  ));
-                  var tracksInShelf = [];
-
-                  for (var m = 0; m < shelfItems.length; m++) {
-                    var shelfItem = shelfItems[m];
-                    var shelfItemTitle = pickText(shelfItem.querySelector('#title, .title, yt-formatted-string.title, a[title], a#video-title'));
-                    var shelfItemArtist = pickText(shelfItem.querySelector('#subtitle, .subtitle, .byline, yt-formatted-string.subtitle, .details'));
-                    var shelfItemLink = shelfItem.querySelector('a[href*="watch"], a[href*="playlist"], a[href*="browse"], a[href]');
-                    var shelfItemThumb = shelfItem.querySelector('img');
-
-                    if (!shelfItemTitle && shelfItemLink) {
-                      shelfItemTitle = shelfItemLink.getAttribute('title') || pickText(shelfItemLink);
-                    }
-                    // Only include items with a direct watch?v= link (actual songs)
-                    if (!shelfItemTitle) continue;
-                    var shelfItemUrl = shelfItemLink ? shelfItemLink.href : '';
-                    if (shelfItemUrl && shelfItemUrl.indexOf('watch') === -1) continue;
-
-                    tracksInShelf.push({
-                      title: shelfItemTitle,
-                      artist: shelfItemArtist,
-                      url: shelfItemUrl,
-                      thumbnail: shelfItemThumb ? (shelfItemThumb.src || '') : ''
-                    });
-                  }
-
-                  // Deduplicate by URL/title
-                  var deduped = [];
-                  var seen = new Set();
-                  for (var n = 0; n < tracksInShelf.length; n++) {
-                    var trackKey = (tracksInShelf[n].url || '') + '|' + normalized(tracksInShelf[n].title || '');
-                    if (seen.has(trackKey)) continue;
-                    seen.add(trackKey);
-                    deduped.push(tracksInShelf[n]);
-                  }
-
-                  if (deduped.length > 0) {
-                    allPlaylists.push({
-                      title: shelfTitle,
-                      tracks: deduped
-                    });
-                  }
-                }
-
-                // ── Scrape "Up Next" / autoplay queue (watch page) ──
-                var upNextTracks = [];
-                var queueItems = Array.from(document.querySelectorAll(
-                  'ytmusic-player-queue-item, '
-                  + 'ytmusic-queue #contents ytmusic-responsive-list-item-renderer, '
-                  + '#automix-contents ytmusic-responsive-list-item-renderer, '
-                  + '#queue-content ytmusic-responsive-list-item-renderer, '
-                  + 'ytmusic-tab-renderer[page-type="MUSIC_PAGE_TYPE_QUEUE"] ytmusic-responsive-list-item-renderer'
-                ));
-                for (var qi = 0; qi < queueItems.length; qi++) {
-                  var qItem = queueItems[qi];
-                  var qTitle = pickText(qItem.querySelector('.song-title, .title, yt-formatted-string.title, a[title]'));
-                  var qArtist = pickText(qItem.querySelector('.byline, .subtitle, .secondary-flex-columns yt-formatted-string'));
-                  var qThumb = qItem.querySelector('img');
-                  // Extract videoId from the queue item's data or link
-                  var qUrl = '';
-                  var qLink = qItem.querySelector('a[href*="watch"]');
-                  if (qLink) {
-                    qUrl = qLink.href;
-                  } else {
-                    // ytmusic-player-queue-item stores videoId in attributes or data
-                    var qVideoId = qItem.getAttribute('video-id')
-                                || (qItem.__data && qItem.__data.data && qItem.__data.data.videoId)
-                                || '';
-                    if (qVideoId) qUrl = 'https://music.youtube.com/watch?v=' + qVideoId;
-                  }
-                  if (!qTitle || !qUrl) continue;
-                  upNextTracks.push({
-                    title: qTitle,
-                    artist: qArtist,
-                    url: qUrl,
-                    thumbnail: qThumb ? (qThumb.src || '') : ''
-                  });
-                }
-                // Dedup up-next
-                if (upNextTracks.length > 0) {
-                  var unSeen = new Set();
-                  upNextTracks = upNextTracks.filter(function(t) {
-                    var key = (t.url || '') + '|' + normalized(t.title || '');
-                    if (unSeen.has(key)) return false;
-                    unSeen.add(key);
-                    return true;
-                  });
-                }
-
-                // Combine recommendedTracks from the first shelf that has any (legacy compat)
-                var recommendedTracks = allPlaylists.length > 0 ? allPlaylists[0].tracks : [];
-
-                var videoEnded = !!(window.__tuneboxVideoEnded);
-                if (videoEnded) window.__tuneboxVideoEnded = false;
-
-                var stateObj = {
-                  title:     titleEl  ? titleEl.textContent.trim()  : '',
-                  artist:    artistEl ? artistEl.textContent.trim() : '',
-                  thumbnail: thumbEl ? (thumbEl.src || '') : '',
-                  isPlaying: isPlaying,
-                  currentTime: ct,
-                  duration: dur,
-                  videoEnded: videoEnded,
-                  recommendedTracks: recommendedTracks,
-                  allPlaylists: allPlaylists,
-                  upNextTracks: upNextTracks
-                };
-                return stateObj;
-              } catch(e) { return null; }
-            })()
-          `)
+          const state = await activePlaybackWc.executeJavaScript(getScript('poll-state'))
           // Periodically merge homepage recommendations from the webview when
           // playback source has been swapped to a hidden preload window
           if (state && webviewWebContents && webviewWebContents !== activePlaybackWc && !webviewWebContents.isDestroyed()) {
             recsPollCounter++
             if (recsPollCounter % 3 === 0) {
               try {
-                const recsState = await webviewWebContents.executeJavaScript(`
-                  (function() {
-                    try {
-                      var pickText = function(el) { return el ? (el.textContent || '').trim() : '' };
-                      var normalized = function(text) { return (text || '').replace(/\\s+/g, '').toLowerCase() };
-                      var allPlaylists = [];
-                      var shelves = Array.from(document.querySelectorAll('ytmusic-shelf-renderer, ytmusic-carousel-shelf-renderer'));
-                      for (var k = 0; k < shelves.length; k++) {
-                        var shelfRoot = shelves[k];
-                        var shelfTitleEl = shelfRoot.querySelector('h2, .title, yt-formatted-string.title');
-                        var shelfTitle = pickText(shelfTitleEl) || 'Untitled Shelf';
-                        var shelfItems = Array.from(shelfRoot.querySelectorAll(
-                          'ytmusic-responsive-list-item-renderer, ytmusic-two-row-item-renderer, ytmusic-compact-station-renderer'
-                        ));
-                        var tracksInShelf = [];
-                        for (var m = 0; m < shelfItems.length; m++) {
-                          var item = shelfItems[m];
-                          var iTitle = pickText(item.querySelector('#title, .title, yt-formatted-string.title, a[title], a#video-title'));
-                          var iArtist = pickText(item.querySelector('#subtitle, .subtitle, .byline, yt-formatted-string.subtitle, .details'));
-                          var iLink = item.querySelector('a[href*="watch"]');
-                          var iThumb = item.querySelector('img');
-                          if (!iTitle) continue;
-                          var iUrl = iLink ? iLink.href : '';
-                          if (iUrl && iUrl.indexOf('watch') === -1) continue;
-                          tracksInShelf.push({ title: iTitle, artist: iArtist, url: iUrl, thumbnail: iThumb ? (iThumb.src || '') : '' });
-                        }
-                        if (tracksInShelf.length > 0) allPlaylists.push({ title: shelfTitle, tracks: tracksInShelf });
-                      }
-                      return { allPlaylists: allPlaylists };
-                    } catch(e) { return null; }
-                  })()
-                `)
+                const recsState = await webviewWebContents.executeJavaScript(getScript('poll-recs'))
                 if (recsState && Array.isArray(recsState.allPlaylists) && recsState.allPlaylists.length > 0) {
                   state.allPlaylists = [...(state.allPlaylists || []), ...recsState.allPlaylists]
                   if (!state.recommendedTracks || state.recommendedTracks.length === 0) {
@@ -945,66 +526,53 @@ function registerIpcHandlers() {
         case 'play':
           diagLog('command:play', { wcId: activePlaybackWc.id })
           enforceSingleActivePlayback(activePlaybackWc)
-          await activePlaybackWc.executeJavaScript(`
-            (function() {
-              window.__tuneboxAwaitingOurNavigation = false;
-              var v = document.querySelector('video');
-              if (v) { v.muted = false; v.play(); }
-            })()
-          `)
+          await activePlaybackWc.executeJavaScript(getScript('cmd-play'))
           break
         case 'pause':
           diagLog('command:pause', { wcId: activePlaybackWc.id })
           pauseAllKnownPlaybackSources()
           break
+
+        case 'pauseBeforeTrackEnd': {
+          // Proactively called ~1-1.5s before a track ends.
+          // Mute + pause all sources and set __tuneboxAwaitingOurNavigation=true so that
+          // when the video 'ended' event fires and YT Music tries to auto-advance its own
+          // queue, every 'play' event will be silently suppressed until we navigate.
+          diagLog('command:pauseBeforeTrackEnd')
+          const preEndCandidates = [
+            ytWebContents,
+            webviewWebContents,
+            activeExtraWin && !activeExtraWin.isDestroyed() ? activeExtraWin.webContents : null,
+            preloadWin && !preloadWin.isDestroyed() ? preloadWin.webContents : null
+          ]
+          const preEndSeen = new Set()
+          for (const wc of preEndCandidates) {
+            if (!wc || wc.isDestroyed()) continue
+            if (preEndSeen.has(wc.id)) continue
+            preEndSeen.add(wc.id)
+            try {
+              wc.setAudioMuted(true)
+              wc.executeJavaScript(getScript('cmd-pause-before-track-end')).catch(() => {})
+            } catch(_) {}
+          }
+          break
+        }
         case 'next':
           diagLog('command:next', { wcId: activePlaybackWc.id })
-          await activePlaybackWc.executeJavaScript(`
-            (function() {
-              var btn = document.querySelector('.next-button')
-                     || document.querySelector('[aria-label="Next"]')
-                     || document.querySelector('tp-yt-paper-icon-button.next-button')
-                     || document.querySelector('ytmusic-player-bar .next-button');
-              if (btn) { btn.click(); return; }
-              // fallback: simulate keyboard shortcut
-              document.dispatchEvent(new KeyboardEvent('keydown', {key:'N',code:'KeyN',shiftKey:true,bubbles:true}));
-            })()
-          `)
+          await activePlaybackWc.executeJavaScript(getScript('cmd-next'))
           break
         case 'previous':
           diagLog('command:previous', { wcId: activePlaybackWc.id })
-          await activePlaybackWc.executeJavaScript(`
-            (function() {
-              var btn = document.querySelector('.previous-button')
-                     || document.querySelector('[aria-label="Previous"]')
-                     || document.querySelector('tp-yt-paper-icon-button.previous-button')
-                     || document.querySelector('ytmusic-player-bar .previous-button');
-              if (btn) { btn.click(); return; }
-              document.dispatchEvent(new KeyboardEvent('keydown', {key:'P',code:'KeyP',shiftKey:true,bubbles:true}));
-            })()
-          `)
+          await activePlaybackWc.executeJavaScript(getScript('cmd-previous'))
           break
         case 'dislike':
           diagLog('command:dislike', { wcId: activePlaybackWc.id })
-          await activePlaybackWc.executeJavaScript(`
-            (function() {
-              var btn = document.querySelector('#dislike-button-renderer button')
-                     || document.querySelector('ytmusic-like-button-renderer#like-button-renderer [aria-label*="dislike" i]')
-                     || document.querySelector('[aria-label="Dislike"]')
-                     || document.querySelector('ytmusic-like-button-renderer[like-status] .dislike');
-              if (btn) btn.click();
-            })()
-          `)
+          await activePlaybackWc.executeJavaScript(getScript('cmd-dislike'))
           break
         case 'seek':
           if (data && typeof data.time === 'number') {
             diagLog('command:seek', { wcId: activePlaybackWc.id, time: data.time })
-            await activePlaybackWc.executeJavaScript(`
-              (function() {
-                var v = document.querySelector('video');
-                if (v) v.currentTime = ${data.time};
-              })()
-            `)
+            await activePlaybackWc.executeJavaScript(getScript('cmd-seek', { SEEK_TIME: data.time }))
           }
           break
         case 'setVolume':
@@ -1012,16 +580,7 @@ function registerIpcHandlers() {
             diagLog('command:setVolume', { wcId: activePlaybackWc.id, volume: data.volume })
             const vol01 = data.volume / 100
             lastKnownVolume = vol01
-            await activePlaybackWc.executeJavaScript(`
-              (function() {
-                window.__tuneboxDesiredVolume = ${vol01};
-                var v = document.querySelector('video');
-                if (v) {
-                  window.__tuneboxSelfSetting = true;
-                  try { v.volume = ${vol01}; } finally { window.__tuneboxSelfSetting = false; }
-                }
-              })()
-            `)
+            await activePlaybackWc.executeJavaScript(getScript('cmd-set-volume', { VOLUME: vol01 }))
           }
           break
         case 'playTrack':
@@ -1033,8 +592,6 @@ function registerIpcHandlers() {
               preloadUrl,
               hasPreloadWin: !!(preloadWin && !preloadWin.isDestroyed())
             })
-            // Bump serial: any in-flight play-poll from previous playTrack self-cancels
-            playTrackSerial++
             // Check if this URL was preloaded and is ready
             if (preloadReady && preloadUrl === data.url && preloadWin && !preloadWin.isDestroyed()) {
               diagLog('command:playTrack:preloadHit', { requestedUrl: data.url, newSerial: playTrackSerial })
@@ -1042,7 +599,7 @@ function registerIpcHandlers() {
               // 1. Mute and pause old active source + invalidate its play-poll
               if (ytWebContents && !ytWebContents.isDestroyed()) {
                 ytWebContents.setAudioMuted(true)
-                ytWebContents.executeJavaScript('window.__tuneboxPlaySerial=-1;var v=document.querySelector("video");if(v){v.muted=true;v.pause();}window.__tuneboxAwaitingOurNavigation=false;').catch(() => {})
+                ytWebContents.executeJavaScript(getScript('cmd-silence-old-source')).catch(() => {})
               }
               // 2. Destroy previous hidden playback window if any
               if (activeExtraWin && !activeExtraWin.isDestroyed()) {
@@ -1083,41 +640,7 @@ function registerIpcHandlers() {
                   mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
                 }
               })
-              await ytWebContents.executeJavaScript(`
-                (function() {
-                  window.__tuneboxAwaitingOurNavigation = false;
-                  window.__tuneboxDesiredVolume = ${swapVol};
-                  window.__tuneboxSelfSetting = true;
-                  var v = document.querySelector('video');
-                  if (v) {
-                    try { v.volume = ${swapVol}; } finally { window.__tuneboxSelfSetting = false; }
-                    v.muted = false;
-                    v.play().catch(function(){});
-                  }
-                  // Also click YT Music play button to sync internal state
-                  var playBtn = document.querySelector('#play-pause-button');
-                  if (playBtn && v && v.paused) {
-                    playBtn.click();
-                  }
-                  // Aggressive retry: video.play() + play button click
-                  var retries = 0;
-                  function retryPlay() {
-                    retries++;
-                    var vid = document.querySelector('video');
-                    if (vid && !vid.paused && vid.currentTime > 0) { return; }
-                    if (vid) {
-                      vid.muted = false;
-                      vid.play().catch(function(){});
-                      if (vid.paused) {
-                        var pb = document.querySelector('#play-pause-button');
-                        if (pb) { pb.click(); }
-                      }
-                    }
-                    if (retries < 15) { setTimeout(retryPlay, 200); }
-                  }
-                  setTimeout(retryPlay, 200);
-                })()
-              `)
+              await ytWebContents.executeJavaScript(getScript('cmd-swap-preload-resume', { VOLUME: swapVol }))
               // 5. Navigate the old webview back to homepage for recommendations
               if (webviewWebContents && webviewWebContents !== ytWebContents && !webviewWebContents.isDestroyed()) {
                 webviewWebContents.setAudioMuted(true)
@@ -1126,9 +649,10 @@ function registerIpcHandlers() {
             } else {
               diagLog('command:playTrack:preloadMiss', { requestedUrl: data.url, newSerial: playTrackSerial })
               // ── Normal navigation (preload miss) ──
-              // Cancel stale preload if URL doesn't match
-              if (preloadWin && !preloadWin.isDestroyed() && preloadUrl !== data.url) {
-                // Invalidate old preload callbacks before destroying the window
+              // Cancel any in-progress preload unconditionally — we're about to
+              // navigate activePlaybackWc directly, so a stale preload for any URL
+              // (including the same URL) must not be promoted afterwards.
+              if (preloadWin && !preloadWin.isDestroyed()) {
                 preloadSerial++
                 if (preloadProbeTimer) {
                   clearInterval(preloadProbeTimer)
@@ -1139,7 +663,6 @@ function registerIpcHandlers() {
                 preloadUrl = null
                 preloadReady = false
               }
-              const safeUrl = JSON.stringify(data.url)
               // Bump serial so any in-flight play-poll from a previous
               // playTrack call will self-cancel.
               playTrackSerial++
@@ -1148,107 +671,7 @@ function registerIpcHandlers() {
               // Navigate to the new track. With autoplay-policy=no-user-gesture-required,
               // video.play() is guaranteed to work, so we use a simple approach:
               // mute+pause old → SPA navigate → poll until video loads → play() → unmute.
-              await activePlaybackWc.executeJavaScript(`
-                (function() {
-                  var url = ${safeUrl};
-                  var match = url.match(/[?&]v=([^&]+)/);
-                  if (!match) { window.location.href = url; return; }
-
-                  var videoId = match[1];
-                  var watchPath = '/watch?v=' + videoId;
-                  var fullUrl = 'https://music.youtube.com' + watchPath;
-
-                  // Clear flags and hold playback muted until our navigation finishes
-                  window.__tuneboxVideoEnded = false;
-                  window.__tuneboxAwaitingOurNavigation = true;
-                  window.__tuneboxIgnoreEndedUntil = Date.now() + 4000;
-
-                  // Mute + pause current playback during transition.
-                  // We mute immediately, then pause after a brief delay so YT Music
-                  // doesn't fight us. The new video will get its own play() call.
-                  var v = document.querySelector('video');
-                  if (v) { v.muted = true; v.pause(); }
-
-                  // SPA navigate
-                  var navigated = false;
-                  var app = document.querySelector('ytmusic-app');
-                  if (app && typeof app.navigate_ === 'function') {
-                    app.navigate_(watchPath);
-                    navigated = true;
-                  } else {
-                    var router = document.querySelector('yt-navigation-manager');
-                    if (router && typeof router.navigate === 'function') {
-                      router.navigate(watchPath);
-                      navigated = true;
-                    }
-                  }
-                  if (!navigated) {
-                    window.location.href = fullUrl;
-                    return;
-                  }
-
-                  // Store serial on window so we can check cancellation.
-                  window.__tuneboxPlaySerial = ${mySerial};
-
-                  // Poll: wait for video to be ready, then force play + unmute
-                  var attempts = 0;
-                  function ensurePlaying() {
-                    // Cancel if a newer playTrack arrived
-                    if (window.__tuneboxPlaySerial !== ${mySerial}) return;
-                    attempts++;
-                    var vid = document.querySelector('video');
-
-                    // Success: playback has started
-                    if (vid && !vid.paused) {
-                      window.__tuneboxAwaitingOurNavigation = false;
-                      vid.muted = false;
-                      return;
-                    }
-
-                    if (vid) {
-                      if (vid.readyState >= 1) {
-                        window.__tuneboxAwaitingOurNavigation = false;
-                      }
-                      // Force play once video has enough data
-                      if (vid.readyState >= 2) {
-                        vid.muted = false;
-                        vid.play().then(function() {}).catch(function() {});
-                      } else if (vid.readyState >= 1) {
-                        vid.play().catch(function() {});
-                      }
-
-                      // Keep YT Music internal play/pause state aligned.
-                      // Low-frequency click avoids rapid toggle flapping.
-                      if (vid.paused && attempts % 4 === 0) {
-                        var playBtn = document.querySelector('#play-pause-button');
-                        if (playBtn) { playBtn.click(); }
-                      }
-                    }
-
-                    if (attempts >= 40) {
-                      // Last resort: full page redirect (auto-plays on load)
-                      window.location.href = fullUrl;
-                      return;
-                    }
-                    setTimeout(ensurePlaying, 200);
-                  }
-                  // Start polling immediately
-                  ensurePlaying();
-
-                  // Fallback: if still paused after navigation settles, force one more resume.
-                  setTimeout(function() {
-                    if (window.__tuneboxPlaySerial !== ${mySerial}) return;
-                    var vid = document.querySelector('video');
-                    if (vid && vid.paused) {
-                        window.__tuneboxAwaitingOurNavigation = false;
-                        vid.muted = false;
-                        vid.play().catch(function() {});
-                        var pb = document.querySelector('#play-pause-button');
-                        if (pb) { pb.click(); }
-                    }
-                  }, 2500);
-                })()
-              `)
+              await activePlaybackWc.executeJavaScript(getScript('cmd-play-track-spa', { URL: data.url, SERIAL: mySerial }))
             }
           }
           break
@@ -1285,11 +708,7 @@ function registerIpcHandlers() {
               setupPlaybackScripts(preloadTarget.webContents, lastKnownVolume)
               // Set volume to match current playback
               const pvol = lastKnownVolume
-              preloadTarget.webContents.executeJavaScript(`
-                (function() {
-                  window.__tuneboxDesiredVolume = ${pvol};
-                })()
-              `).catch(() => {})
+              preloadTarget.webContents.executeJavaScript(getScript('preload-seed-volume', { VOLUME: pvol })).catch(() => {})
               // Wait for video to buffer, then pause it
               let attempts = 0
               let probeInFlight = false
@@ -1315,16 +734,7 @@ function registerIpcHandlers() {
                 }
                 probeInFlight = true
                 try {
-                  const ready = await preloadTarget.webContents.executeJavaScript(`
-                    (function() {
-                      var v = document.querySelector('video');
-                      if (v && v.readyState >= 3) {
-                        v.pause();
-                        return true;
-                      }
-                      return false;
-                    })()
-                  `)
+                  const ready = await preloadTarget.webContents.executeJavaScript(getScript('preload-probe'))
                   if (ready) {
                     clearInterval(checkInterval)
                     if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
@@ -1395,7 +805,7 @@ app.on('before-quit', () => {
     if (!wc || wc.isDestroyed()) return
     try {
       wc.setAudioMuted(true)
-      wc.executeJavaScript('(function(){var v=document.querySelector("video");if(v){v.muted=true;v.pause();}})()').catch(()=>{})
+      wc.executeJavaScript(getScript('silence-video')).catch(() => {})
     } catch(_) {}
   }
   silenceWC(ytWebContents)
