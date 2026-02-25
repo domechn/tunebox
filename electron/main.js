@@ -457,9 +457,39 @@ function createWindow() {
       setupPlaybackScripts(webContents, lastKnownVolume)
 
       // Fast path: detect videoEnded via console-message (near-instant, no polling delay)
-      webContents.on('console-message', (_event, _level, message) => {
+      webContents.on('console-message', async (_event, _level, message) => {
         if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
           diagLog('videoEnded:consoleSignal', { wcId: webContents.id })
+
+          // Proactively pause + mute before YT Music's own autoplay queue can bleed through.
+          // Keep retrying a few times in case pause() gets ignored by the player.
+          try {
+            await webContents.executeJavaScript(`
+              (function() {
+                try {
+                  window.__tuneboxAwaitingOurNavigation = true;
+                  window.__tuneboxIgnoreEndedUntil = Date.now() + 5000;
+                  var v = document.querySelector('video');
+                  if (!v) return;
+                  v.muted = true;
+                  try { v.pause(); } catch (_) {}
+                  var tries = 0;
+                  function retryPause() {
+                    tries++;
+                    v.muted = true;
+                    if (!v.paused) {
+                      try { v.pause(); } catch (_) {}
+                    }
+                    if (tries < 8) {
+                      setTimeout(retryPause, 120);
+                    }
+                  }
+                  setTimeout(retryPause, 120);
+                } catch (_) {}
+              })()
+            `)
+          } catch (_) {}
+
           mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
         }
       })
