@@ -542,8 +542,9 @@ function registerIpcHandlers() {
           const preEndCandidates = [
             ytWebContents,
             webviewWebContents,
-            activeExtraWin && !activeExtraWin.isDestroyed() ? activeExtraWin.webContents : null,
-            preloadWin && !preloadWin.isDestroyed() ? preloadWin.webContents : null
+            activeExtraWin && !activeExtraWin.isDestroyed() ? activeExtraWin.webContents : null
+            // Note: preloadWin is intentionally excluded — it holds the NEXT track
+            // and must not be muted/paused/flagged before being promoted.
           ]
           const preEndSeen = new Set()
           for (const wc of preEndCandidates) {
@@ -635,8 +636,16 @@ function registerIpcHandlers() {
               ytWebContents.setAudioMuted(false)
               const swapVol = lastKnownVolume
               // Listen for videoEnded on the promoted window
-              ytWebContents.on('console-message', (_event, _level, message) => {
+              ytWebContents.on('console-message', async (_event, _level, message) => {
                 if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
+                  diagLog('videoEnded:consoleSignal:promotedWin', { wcId: ytWebContents && !ytWebContents.isDestroyed() ? ytWebContents.id : null })
+                  // Aggressively mute + pause to prevent YT Music auto-queue bleed
+                  try {
+                    if (ytWebContents && !ytWebContents.isDestroyed()) {
+                      ytWebContents.setAudioMuted(true)
+                      await ytWebContents.executeJavaScript(getScript('video-ended-retry'))
+                    }
+                  } catch (_) {}
                   mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
                 }
               })

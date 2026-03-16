@@ -20,13 +20,17 @@
     var isPlaying = video ? !video.paused : false;
     var ct = 0;
     var dur = 0;
-    var progressBar = document.querySelector('#progress-bar') || document.querySelector('ytmusic-player-bar tp-yt-paper-slider');
-    if (progressBar) {
-      ct = parseFloat(progressBar.getAttribute('value') || '0');
-      dur = parseFloat(progressBar.getAttribute('aria-valuemax') || '0');
-    } else if (video) {
-      ct = isFinite(video.currentTime) ? video.currentTime : 0;
-      dur = isFinite(video.duration) ? video.duration : 0;
+    // Prefer video element properties — they stay accurate in hidden windows
+    // where the progress bar DOM may not update (requestAnimationFrame throttled).
+    if (video && isFinite(video.currentTime) && isFinite(video.duration) && video.duration > 0) {
+      ct = video.currentTime;
+      dur = video.duration;
+    } else {
+      var progressBar = document.querySelector('#progress-bar') || document.querySelector('ytmusic-player-bar tp-yt-paper-slider');
+      if (progressBar) {
+        ct = parseFloat(progressBar.getAttribute('value') || '0');
+        dur = parseFloat(progressBar.getAttribute('aria-valuemax') || '0');
+      }
     }
 
     var normalized = function (text) {
