@@ -19,6 +19,15 @@ interface ElectronApi {
 	sendCommand: (command: string, data?: any) => Promise<{ ok: boolean; error?: string }>
 	logout: () => Promise<{ ok: boolean }>
 	quit: () => Promise<void>
+
+	// Auto-updater
+	checkForUpdates: () => Promise<{ ok: boolean; version?: string; error?: string }>
+	downloadUpdate: () => Promise<{ ok: boolean; error?: string }>
+	installUpdate: () => Promise<void>
+	onUpdateAvailable: (callback: (info: { version: string; releaseDate?: string; releaseNotes?: string }) => void) => (() => void) | void
+	onUpdateDownloaded: (callback: (info: { version: string }) => void) => (() => void) | void
+	onDownloadProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => (() => void) | void
+	onUpdateError: (callback: (error: { message: string }) => void) => (() => void) | void
 }
 
 interface Window {

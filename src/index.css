@@ -1042,3 +1042,78 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ── Auto-update banner ──────────────────────────────────────── */
+.update-banner {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(30, 16, 6, 0.92);
+  border: 1px solid rgba(180, 130, 70, 0.35);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  font-size: 11px;
+  color: #dcc9a3;
+  font-family: inherit;
+  backdrop-filter: blur(8px);
+  animation: update-banner-in 0.3s ease-out;
+}
+
+@keyframes update-banner-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.update-banner-text {
+  white-space: nowrap;
+}
+
+.update-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(180, 130, 70, 0.4);
+  background: rgba(180, 130, 70, 0.15);
+  color: #e8d5a8;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.update-banner-btn:hover {
+  background: rgba(180, 130, 70, 0.3);
+}
+
+.update-banner-dismiss {
+  background: none;
+  border: none;
+  color: #8a7a5a;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.update-banner-dismiss:hover {
+  color: #dcc9a3;
+}
+
+.update-banner-progress {
+  width: 80px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(180, 130, 70, 0.2);
+  overflow: hidden;
+}
+.update-banner-progress-bar {
+  height: 100%;
+  background: #b4823e;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}

@@ -17,5 +17,30 @@ contextBridge.exposeInMainWorld('electron', {
   },
   sendCommand: (command, data) => ipcRenderer.invoke('ytmusic-command', command, data),
   logout: () => ipcRenderer.invoke('ytmusic-auth:logout'),
-  quit: () => ipcRenderer.invoke('app:quit')
+  quit: () => ipcRenderer.invoke('app:quit'),
+
+  // Auto-updater
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onUpdateAvailable: (callback) => {
+    const handler = (_, payload) => callback(payload)
+    ipcRenderer.on('update-available', handler)
+    return () => ipcRenderer.removeListener('update-available', handler)
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = (_, payload) => callback(payload)
+    ipcRenderer.on('update-downloaded', handler)
+    return () => ipcRenderer.removeListener('update-downloaded', handler)
+  },
+  onDownloadProgress: (callback) => {
+    const handler = (_, payload) => callback(payload)
+    ipcRenderer.on('update-download-progress', handler)
+    return () => ipcRenderer.removeListener('update-download-progress', handler)
+  },
+  onUpdateError: (callback) => {
+    const handler = (_, payload) => callback(payload)
+    ipcRenderer.on('update-error', handler)
+    return () => ipcRenderer.removeListener('update-error', handler)
+  }
 })

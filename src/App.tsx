@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { VintageRadio } from '@/components/player/VintageRadio'
 import { PlaylistDebugPage } from '@/components/debug/PlaylistDebugPage'
+import { UpdateNotification } from '@/components/UpdateNotification'
 import { useYouTubeMusic } from '@/hooks/use-youtube-music'
 import type { YouTubeEmbedElement } from '@/hooks/use-youtube-music'
 import { Power } from '@phosphor-icons/react'
@@ -225,6 +226,7 @@ function App() {
               onOpenDebug={openDebugPage}
             />
           )}
+          <UpdateNotification />
         </>
       )}
       <div className="player-shell-shadow" />

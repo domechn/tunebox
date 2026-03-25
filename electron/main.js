@@ -2,6 +2,7 @@ const { app, BrowserWindow, session, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { getScript } = require('./scripts')
+const { initAutoUpdater } = require('./updater')
 
 let mainWindow
 let loginWindow
@@ -800,6 +801,7 @@ app.whenReady().then(() => {
   setupYouTubeSessionHeaderCapture()
   registerIpcHandlers()
   createWindow()
+  initAutoUpdater(mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
