@@ -9,7 +9,7 @@
 - **Frontend**: React application located in `src/`. The main entry point is `src/main.tsx` and `src/App.tsx`.
 - **Backend**: Electron application located in `electron/`. The main entry point is `electron/main.js`.
 - **Communication**: The React frontend communicates with the Electron backend via IPC (`window.electron.sendCommand`) exposed in `electron/preload.js`.
-- **YouTube Music Integration**: The app embeds YouTube Music using a `<webview>` or `<iframe>` and injects `electron/ytmusic-control.js` to control playback and extract track info. The `useYouTubeMusic` hook (`src/hooks/use-youtube-music.ts`) manages this interaction.
+- **YouTube Music Integration**: The app embeds YouTube Music using a `<webview>` or `<iframe>` and drives playback and extracts track info via scripts in `electron/injection/` (executed from the main process over IPC). The `useYouTubeMusic` hook (`src/hooks/use-youtube-music.ts`) manages this interaction.
 
 ## Build and Test
 - **Install Dependencies**: 
@@ -32,7 +32,7 @@
 - **Player Components**: Player-specific components are located in `src/components/player/` (e.g., `VintageRadio.tsx`, `TrackDisplay.tsx`).
 
 ## Integration Points
-- **YouTube Music API**: The app interacts with YouTube Music by injecting scripts (`electron/ytmusic-control.js`) into the embedded page. Commands are sent via IPC or `postMessage`.
+- **YouTube Music API**: The app interacts with YouTube Music by injecting scripts (`electron/injection/*.js`) into the embedded page. Commands are sent via IPC.
 - **Authentication**: The Electron app intercepts network requests to capture YouTube Music authentication headers (`electron/main.js`).
 
 ## Security
