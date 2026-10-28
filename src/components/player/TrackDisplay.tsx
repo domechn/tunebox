@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MusicNote } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MarqueeText } from '@/components/ui/marquee-text'
 

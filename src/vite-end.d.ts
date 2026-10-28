@@ -6,7 +6,6 @@ interface ElectronApi {
 	version: string
 	openYouTubeMusicLogin: () => Promise<{ opened: boolean }>
 	getYouTubeMusicAuthState: () => Promise<{ ready: boolean; capturedAt: string | null }>
-	getYouTubeMusicAuthHeaders: () => Promise<Record<string, string> | null>
 	onYouTubeMusicAuthUpdated: (callback: (payload: { ready: boolean; capturedAt: string | null }) => void) => (() => void) | void
 	onYouTubeMusicState: (callback: (state: {
 		title: string; artist: string; thumbnail: string
@@ -39,7 +38,6 @@ declare namespace JSX {
 		webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
 			src?: string
 			partition?: string
-			allowpopups?: boolean
 			webpreferences?: string
 		}
 	}

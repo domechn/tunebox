@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, RefObject } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { SkipBack, SkipForward, Play, Pause, ThumbsDown, Power, SignOut } from '@phosphor-icons/react'
 import type { UseYouTubeMusicReturn } from '@/hooks/use-youtube-music'
@@ -22,12 +22,14 @@ function formatTime(seconds: number): string {
 export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = false, onOpenDebug }: VintageRadioProps) {
   const [volume, setVolume] = useLocalStorage<number>('radio-vol', 70)
   const [isChangingTrack, setIsChangingTrack] = useState(false)
+  const [previewTime, setPreviewTime] = useState<number | null>(null)
   const [knobRotation, setKnobRotation] = useState(() => (volume / 100) * 270 - 135)
   const [isDragging, setIsDragging] = useState(false)
   const isDraggingRef = useRef(false)
   const lastAngleRef = useRef(0)
   const knobRotationRef = useRef((volume / 100) * 270 - 135)
   const progressTrackRef = useRef<HTMLDivElement>(null)
+  const draggedVolumeRef = useRef(volume)
 
   const { setVolume: ytSetVolume, trackInfo, playbackState, playNextFromPlaylist, playPreviousFromPlaylist, playedHistory, isLoadingMore } = ytMusic
   const isFirstTrack = playedHistory.length === 0
@@ -53,7 +55,7 @@ export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = fals
 
   // Sync volume to YouTube Music
   useEffect(() => {
-    ytSetVolume(volume)
+    if (!isDraggingRef.current) ytSetVolume(volume)
   }, [volume, ytSetVolume])
 
   const handlePrevious = () => {
@@ -74,21 +76,22 @@ export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = fals
   // Progress bar seek via click/drag
   const seekFromEvent = (clientX: number) => {
     const track = progressTrackRef.current
-    if (!track || playbackState.duration <= 0) return
+    if (!track || playbackState.duration <= 0) return null
     const rect = track.getBoundingClientRect()
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    const seekTime = ratio * playbackState.duration
-    ytMusic.seek(seekTime)
+    return ratio * playbackState.duration
   }
 
   const handleProgressMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
-    seekFromEvent(e.clientX)
-
+    setPreviewTime(seekFromEvent(e.clientX))
     const handleMouseMove = (ev: MouseEvent) => {
-      seekFromEvent(ev.clientX)
+      setPreviewTime(seekFromEvent(ev.clientX))
     }
-    const handleMouseUp = () => {
+    const handleMouseUp = (ev: MouseEvent) => {
+      const time = seekFromEvent(ev.clientX)
+      if (time !== null) ytMusic.seek(time)
+      setPreviewTime(null)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
@@ -121,17 +124,20 @@ export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = fals
       const newVolume = Math.round(((newRotation + 135) / 270) * 100)
       knobRotationRef.current = newRotation
       setKnobRotation(newRotation)
+      draggedVolumeRef.current = newVolume
       setVolume(newVolume)
     }
 
     const handleMouseUp = () => {
       isDraggingRef.current = false
       setIsDragging(false)
+      ytSetVolume(draggedVolumeRef.current)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
 
     isDraggingRef.current = true
+    draggedVolumeRef.current = volume
     setIsDragging(true)
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -139,7 +145,7 @@ export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = fals
 
   const hasAlbumArt = !!trackInfo.thumbnail && !imageError
   const progress = playbackState.duration > 0
-    ? (playbackState.currentTime / playbackState.duration) * 100
+    ? ((previewTime ?? playbackState.currentTime) / playbackState.duration) * 100
     : 0
 
   return (
@@ -218,7 +224,7 @@ export function VintageRadio({ ytMusic, onExit, onLogout, showDebugButton = fals
             <div className="progress-thumb" style={{ left: `${progress}%` }} />
           </div>
           <div className="progress-times">
-            <span>{formatTime(playbackState.currentTime)}</span>
+            <span>{formatTime(previewTime ?? playbackState.currentTime)}</span>
             <span>{formatTime(playbackState.duration)}</span>
           </div>
         </div>

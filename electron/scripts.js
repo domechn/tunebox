@@ -25,13 +25,8 @@ function _read(name) {
  *   // replaces __SEEK_TIME__ with 42.5 in the script text
  */
 function getScript(name, params = {}) {
-  let code = _read(name)
-  for (const [key, value] of Object.entries(params)) {
-    const placeholder = `__${key}__`
-    // Replace all occurrences (there is usually only one per param)
-    code = code.split(placeholder).join(JSON.stringify(value))
-  }
-  return code
+  return _read(name).replace(/__([A-Z_]+)__/g, (placeholder, key) =>
+    Object.hasOwn(params, key) ? JSON.stringify(params[key]) : placeholder)
 }
 
 module.exports = { getScript }

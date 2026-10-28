@@ -173,7 +173,6 @@ function App() {
               src={YOUTUBE_MUSIC_URL}
               className="fixed inset-0 w-0 h-0 opacity-0 pointer-events-none"
               partition="persist:youtube-music"
-              allowpopups={true}
               webpreferences="contextIsolation=yes"
             />
           ) : (
