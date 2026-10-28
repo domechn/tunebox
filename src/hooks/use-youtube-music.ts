@@ -99,15 +99,14 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     // Prefer IPC through main process (reliable across OOPIF boundary)
     const win = window as Window & { electron?: { sendCommand?: (cmd: string, data?: any) => Promise<any> } }
     if (win.electron?.sendCommand) {
-      win.electron.sendCommand(command, data).catch(() => {})
-      return
+      return win.electron.sendCommand(command, data).catch(() => ({ ok: false }))
     }
 
     // Fallback for non-Electron / iframe usage
     const target = playerRef.current
-    if (!target) return
+    if (!target) return Promise.resolve({ ok: false })
 
-    if (!webviewReady && typeof (target as WebviewLikeElement).executeJavaScript === 'function') return
+    if (!webviewReady && typeof (target as WebviewLikeElement).executeJavaScript === 'function') return Promise.resolve({ ok: false })
 
     const payload = {
       type: 'ytmusic-command',
@@ -118,16 +117,18 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     try {
       if (typeof (target as WebviewLikeElement).executeJavaScript === 'function') {
         const serialized = JSON.stringify(payload)
-        ;(target as WebviewLikeElement).executeJavaScript!(`window.postMessage(${serialized}, '*')`)
-        return
+        return (target as WebviewLikeElement).executeJavaScript!(`window.postMessage(${serialized}, '*')`)
+          .then(() => ({ ok: true }), () => ({ ok: false }))
       }
 
       if (target.contentWindow) {
         target.contentWindow.postMessage(payload, '*')
+        return Promise.resolve({ ok: true })
       }
     } catch (e) {
       console.error('Failed to send command:', e)
     }
+    return Promise.resolve({ ok: false })
   }, [playerRef, webviewReady])
 
   const play = useCallback(() => {
@@ -189,12 +190,14 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
   }, [sendCommand])
 
   const playTrack = useCallback((url: string) => {
-    sendCommand('playTrack', { url })
-    reapplyDesiredVolume([500, 1200, 2500, 4000])
+    return sendCommand('playTrack', { url }).then(result => {
+      if (result.ok) reapplyDesiredVolume([500, 1200, 2500, 4000])
+      return result
+    })
   }, [sendCommand, reapplyDesiredVolume])
 
   const refreshPage = useCallback(() => {
-    sendCommand('refreshPage')
+    return sendCommand('refreshPage')
   }, [sendCommand])
 
   useEffect(() => {
@@ -354,6 +357,8 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
           }
         }
 
+        if (acceptedTrackChanged) reapplyDesiredVolume([500])
+        if (typeof state.isPlaying === 'boolean') isPlayingRef.current = state.isPlaying
         setPlaybackState(prev => {
           const newIsPlaying = state.isPlaying ?? prev.isPlaying
           const nextCurrentTime = typeof state.currentTime === 'number' && Number.isFinite(state.currentTime)
@@ -362,16 +367,6 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
           const nextDuration = typeof state.duration === 'number' && Number.isFinite(state.duration)
             ? state.duration
             : prev.duration
-          isPlayingRef.current = newIsPlaying
-          if (acceptedTrackChanged) {
-            reapplyDesiredVolume([500])
-            return {
-              ...prev,
-              isPlaying: newIsPlaying,
-              currentTime: nextCurrentTime,
-              duration: nextDuration
-            }
-          }
           return {
             ...prev,
             isPlaying: newIsPlaying,
@@ -458,6 +453,7 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
   const prevTrackTitleRef = useRef('')
   const autoAdvanceGuardRef = useRef(0) // Monotonic counter to prevent double auto-advance
   const endSwitchArmedRef = useRef(false)
+  const endSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hasAutoPlayed, setHasAutoPlayed] = useState(false)
 
   const normalizeText = useCallback((text?: string) => (text || '').replace(/\s+/g, '').toLowerCase(), [])
@@ -497,6 +493,9 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
   // Play a track from the playlist by index
   const playFromPlaylist = useCallback((idx: number, opts?: { skipHistory?: boolean }) => {
+    if (endSwitchTimerRef.current) clearTimeout(endSwitchTimerRef.current)
+    endSwitchTimerRef.current = null
+    endSwitchArmedRef.current = false
     const pl = playlistRef.current
     if (idx < 0 || idx >= pl.length) return false
     const track = pl[idx]
@@ -523,7 +522,21 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     markAsPlayed(track)
 
     startNavigationCooldown()
-    playTrack(track.url)
+    void playTrack(track.url).then(result => {
+      if (result.ok || pendingTrackRef.current?.url !== track.url || playlistIndexRef.current !== idx) return
+      if (idx + 1 < playlistRef.current.length) playFromPlaylist(idx + 1)
+      else {
+        playlistExhaustedRef.current = true
+        isRefreshingForMoreRef.current = true
+        setIsLoadingMore(true)
+        void refreshPage().then(result => {
+          if (!result.ok) {
+            isRefreshingForMoreRef.current = false
+            setIsLoadingMore(false)
+          }
+        })
+      }
+    })
     playlistIndexRef.current = idx
     setPlaylistIndex(idx)
     playlistExhaustedRef.current = false
@@ -541,7 +554,7 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
     }, 3000)
 
     return true
-  }, [playTrack, pushToHistory, setLastPlayingTrackUrl, startNavigationCooldown, markAsPlayed, sendCommand])
+  }, [playTrack, pushToHistory, setLastPlayingTrackUrl, startNavigationCooldown, markAsPlayed, sendCommand, refreshPage])
 
   // Request more songs by refreshing YT Music homepage
   const requestMoreSongs = useCallback(() => {
@@ -551,7 +564,12 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
     // Keep existing playlist keys to avoid re-adding same tracks
     // (they'll be filtered by playedUrlsRef and dislikedUrlsRef anyway)
-    refreshPage()
+    void refreshPage().then(result => {
+      if (!result.ok) {
+        isRefreshingForMoreRef.current = false
+        setIsLoadingMore(false)
+      }
+    })
   }, [refreshPage])
 
   // Play next track from playlist (NO YT Music queue fallback)
@@ -571,6 +589,9 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
 
   // Play previous track from history (NO YT Music queue fallback)
   const playPreviousFromPlaylist = useCallback(() => {
+    if (endSwitchTimerRef.current) clearTimeout(endSwitchTimerRef.current)
+    endSwitchTimerRef.current = null
+    endSwitchArmedRef.current = false
     const history = playedHistoryRef.current
     if (history.length === 0) return // No history — do nothing
 
@@ -706,6 +727,10 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
       for (const track of incoming) {
         if (nextPl.length >= MAX_PLAYLIST_SIZE) break
         if (!track?.url) continue
+        try {
+          const url = new URL(track.url)
+          if (url.protocol !== 'https:' || url.hostname !== 'music.youtube.com') continue
+        } catch { continue }
         if (dislikedUrlsRef.current.has(track.url)) continue
         if (playedUrlsRef.current.has(track.url)) continue
         const key = buildTrackKey(track)
@@ -713,6 +738,7 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
         playlistKeysRef.current.add(key)
         nextPl.push(track)
       }
+      if (nextPl.length === prev.length) return prev
       playlistRef.current = nextPl
       return nextPl
     })
@@ -812,11 +838,16 @@ export function useYouTubeMusic(playerRef: RefObject<YouTubeEmbedElement | null>
       // Step 2: After pause has had time to settle, switch to our next playlist track.
       // 700ms gives the pause retries time to run while still switching well before
       // the song would naturally end.
-      window.setTimeout(() => {
+      endSwitchTimerRef.current = window.setTimeout(() => {
+        endSwitchTimerRef.current = null
         playNextFromPlaylist()
       }, 700)
     }
   }, [playbackState.isPlaying, playbackState.currentTime, playbackState.duration, playNextFromPlaylist, sendCommand])
+
+  useEffect(() => () => {
+    if (endSwitchTimerRef.current) clearTimeout(endSwitchTimerRef.current)
+  }, [])
 
   // 4. Detect title change — if YT Music auto-advanced on its own,
   //    redirect to our next playlist song

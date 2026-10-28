@@ -1,10 +1,10 @@
 const { autoUpdater } = require('electron-updater')
-const { ipcMain } = require('electron')
+const { app, ipcMain } = require('electron')
 
-let mainWindow = null
+let getMainWindow = () => null
 
-function initAutoUpdater(win) {
-  mainWindow = win
+function initAutoUpdater(getWin) {
+  getMainWindow = getWin
 
   // Don't auto-download — let the user decide
   autoUpdater.autoDownload = false
@@ -75,12 +75,16 @@ function initAutoUpdater(win) {
   })
 
   // Check for updates after a short delay (let the app finish loading)
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(() => {})
-  }, 5000)
+  // (skipped in dev: electron-updater errors out when the app is not packaged)
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => {})
+    }, 5000)
+  }
 }
 
 function sendToRenderer(channel, data) {
+  const mainWindow = getMainWindow()
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, data)
   }

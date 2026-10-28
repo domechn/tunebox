@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "description": "Tunebox - YouTube Music Desktop App",
   "author": {
-    "name": "domchan",
-    "email": "domchan@users.noreply.github.com"
+    "name": "domechn",
+    "email": "domechn@users.noreply.github.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/domchan/tunebox.git"
+    "url": "https://github.com/domechn/tunebox.git"
   },
   "main": "main.js",
   "scripts": {
@@ -35,7 +35,6 @@
       "preload.js",
       "updater.js",
       "scripts.js",
-      "ytmusic-control.js",
       "injection/**",
       "!**/node_modules/**",
       "!../node_modules/**",
@@ -93,7 +92,7 @@
     },
     "linux": {
       "icon": "icon.png",
-      "maintainer": "domchan <domchan@users.noreply.github.com>",
+      "maintainer": "domechn <domechn@users.noreply.github.com>",
       "target": [
         {
           "target": "AppImage",
@@ -127,7 +126,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "domchan",
+        "owner": "domechn",
         "repo": "tunebox"
       }
     ]

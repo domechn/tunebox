@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain } = require('electron')
+const { app, BrowserWindow, session, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { getScript } = require('./scripts')
@@ -17,6 +17,7 @@ let preloadProbeTimer = null    // Single active preload readiness probe timer
 let lastKnownVolume = 0.7      // Last setVolume value (0-1), for preload window setup
 let playTrackSerial = 0         // Monotonic counter to cancel stale play-polls
 let queueClearedOnStartup = false  // Ensures YT Music queue is cleared only once per launch
+let authCaptureNotified = false
 
 function getActivePlaybackWebContents() {
   if (activeExtraWin && !activeExtraWin.isDestroyed() && activeExtraWin.webContents && !activeExtraWin.webContents.isDestroyed()) {
@@ -82,16 +83,29 @@ function readStoredAuth() {
   }
 }
 
-function persistAuthHeaders(payload) {
+function persistAuthMarker(payload) {
   const filePath = getAuthFilePath()
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8')
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 })
+  try { fs.chmodSync(filePath, 0o600) } catch (_) {}
 }
 
-function isStoredAuthFresh(stored, maxAgeMs = 1000 * 60 * 60 * 12) {
-  if (!stored?.capturedAt) return false
-  const capturedAtMs = Date.parse(stored.capturedAt)
-  if (Number.isNaN(capturedAtMs)) return false
-  return Date.now() - capturedAtMs <= maxAgeMs
+function removeStoredAuth() {
+  try { fs.unlinkSync(getAuthFilePath()) } catch (_) {}
+}
+
+function resetHiddenPlayback() {
+  preloadSerial++
+  playTrackSerial++
+  if (preloadProbeTimer) clearInterval(preloadProbeTimer)
+  preloadProbeTimer = null
+  for (const win of [activeExtraWin, preloadWin]) {
+    if (win && !win.isDestroyed()) win.destroy()
+  }
+  activeExtraWin = null
+  preloadWin = null
+  preloadUrl = null
+  preloadReady = false
+  ytWebContents = null
 }
 
 async function hasYouTubeSessionCookies() {
@@ -111,39 +125,16 @@ async function hasYouTubeSessionCookies() {
 
 function setupYouTubeSessionHeaderCapture() {
   const ytSession = session.fromPartition(YTMUSIC_PARTITION)
-  let lastAuthFingerprint = ''
-
   ytSession.webRequest.onBeforeSendHeaders({ urls: ['https://music.youtube.com/*', 'https://*.youtube.com/*'] }, (details, callback) => {
-    details.requestHeaders['User-Agent'] = USER_AGENT
-
-    const shouldCapture =
-      details.url.includes('/youtubei/v1/') ||
-      details.url.includes('/youtubei/v1/player') ||
-      details.url.includes('/youtubei/v1/browse')
-
-    if (shouldCapture) {
-      const authorization = details.requestHeaders.authorization || details.requestHeaders.Authorization
-      const cookie = details.requestHeaders.cookie || details.requestHeaders.Cookie
-      const xGoogAuthuser = details.requestHeaders['x-goog-authuser'] || details.requestHeaders['X-Goog-AuthUser']
-      const xOrigin = details.requestHeaders['x-origin'] || details.requestHeaders['X-Origin']
-
-      if (authorization && cookie) {
-        const fingerprint = `${authorization}|${xGoogAuthuser || ''}`
-        if (fingerprint !== lastAuthFingerprint) {
-          lastAuthFingerprint = fingerprint
-          const payload = {
-            capturedAt: new Date().toISOString(),
-            sourceUrl: details.url,
-            headers: {
-              authorization,
-              cookie,
-              'x-goog-authuser': xGoogAuthuser || '0',
-              'x-origin': xOrigin || YTMUSIC_URL,
-              'user-agent': USER_AGENT
-            }
-          }
-          persistAuthHeaders(payload)
-
+    try {
+      details.requestHeaders['User-Agent'] = USER_AGENT
+      if (!authCaptureNotified && details.url.includes('/youtubei/v1/')) {
+        const authorization = details.requestHeaders.authorization || details.requestHeaders.Authorization
+        const cookie = details.requestHeaders.cookie || details.requestHeaders.Cookie
+        if (authorization && cookie) {
+          authCaptureNotified = true
+          const payload = { capturedAt: new Date().toISOString(), ready: true }
+          persistAuthMarker(payload)
           if (loginWindow && !loginWindow.isDestroyed()) {
             loginWindow.close()
           }
@@ -156,9 +147,12 @@ function setupYouTubeSessionHeaderCapture() {
           }
         }
       }
+    } catch (error) {
+      authCaptureNotified = false
+      diagLog('auth:captureError', { message: error.message })
+    } finally {
+      callback({ requestHeaders: details.requestHeaders })
     }
-
-    callback({ requestHeaders: details.requestHeaders })
   })
 }
 
@@ -274,11 +268,42 @@ function pauseAllKnownPlaybackSources() {
 // initialVolume: 0-1 float, used to pre-seed __tuneboxDesiredVolume so volume enforcement
 // kicks in immediately (before the first explicit setVolume command arrives).
 function setupPlaybackScripts(wc, initialVolume) {
-  const controlScript = fs.readFileSync(path.join(__dirname, 'ytmusic-control.js'), 'utf8')
-  wc.executeJavaScript(controlScript)
-
   const seedVolume = (typeof initialVolume === 'number') ? initialVolume : null
-  wc.executeJavaScript(getScript('setup-playback', { SEED_VOLUME: seedVolume }))
+  wc.executeJavaScript(getScript('setup-playback', { SEED_VOLUME: seedVolume })).catch(() => {})
+}
+
+
+// ─── Video-ended signal (attach exactly once per webContents) ─────
+const videoEndedAttached = new WeakSet()
+function attachVideoEndedListener(wc) {
+  if (!wc || wc.isDestroyed() || videoEndedAttached.has(wc)) return
+  videoEndedAttached.add(wc)
+  wc.on('console-message', async (_event, _level, message) => {
+    if (message !== '__TUNEBOX_VIDEO_ENDED__') return
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    diagLog('videoEnded:consoleSignal', { wcId: wc.id })
+    // Proactively mute + pause before YT Music's own autoplay queue can bleed through.
+    try {
+      if (!wc.isDestroyed()) {
+        wc.setAudioMuted(true)
+        await wc.executeJavaScript('window.__tuneboxVideoEnded = false')
+        await wc.executeJavaScript(getScript('video-ended-retry'))
+      }
+    } catch (_) {}
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
+    }
+  })
+}
+
+// Only allow navigating playback windows to YouTube Music over https.
+function isAllowedTrackUrl(raw) {
+  try {
+    const u = new URL(raw)
+    return u.protocol === 'https:' && u.hostname === 'music.youtube.com'
+  } catch (_) {
+    return false
+  }
 }
 
 function createWindow() {
@@ -295,7 +320,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
+      webSecurity: true,
       webviewTag: true,
       allowRunningInsecureContent: false,
       autoplayPolicy: 'no-user-gesture-required',
@@ -308,11 +333,23 @@ function createWindow() {
   })
 
   const rendererEntry = resolveRendererEntry()
+  mainWindow.webContents.on('will-navigate', (event) => event.preventDefault())
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      if (new URL(url).protocol === 'https:') shell.openExternal(url).catch(() => {})
+    } catch (_) {}
+    return { action: 'deny' }
+  })
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload
+    delete webPreferences.preloadURL
+    if (!isAllowedTrackUrl(params.src)) event.preventDefault()
+  })
 
   if (rendererEntry.type === 'file') {
-    mainWindow.loadFile(rendererEntry.value)
+    mainWindow.loadFile(rendererEntry.value).catch(() => {})
   } else {
-    mainWindow.loadURL(rendererEntry.value)
+    mainWindow.loadURL(rendererEntry.value).catch(() => {})
   }
 
   if (process.env.NODE_ENV === 'development') {
@@ -330,6 +367,8 @@ function createWindow() {
     webContents.on('destroyed', () => {
       if (ytWebContents === webContents) ytWebContents = null
       if (webviewWebContents === webContents) webviewWebContents = null
+      if (activePollTimer) clearInterval(activePollTimer)
+      activePollTimer = null
     })
     webContents.on('dom-ready', () => {
       // Clear any previous poll timer to avoid duplicates on page reload
@@ -346,25 +385,14 @@ function createWindow() {
         webContents.executeJavaScript(getScript('clear-queue')).catch(function () {})
       }
 
-      // Fast path: detect videoEnded via console-message (near-instant, no polling delay)
-      webContents.on('console-message', async (_event, _level, message) => {
-        if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
-          diagLog('videoEnded:consoleSignal', { wcId: webContents.id })
-
-          // Proactively pause + mute before YT Music's own autoplay queue can bleed through.
-          // Keep retrying a few times in case pause() gets ignored by the player.
-          try {
-            await webContents.executeJavaScript(getScript('video-ended-retry'))
-          } catch (_) {}
-
-          mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
-        }
-      })
+      // Fast path: detect videoEnded via console-message (registered once per webContents)
+      attachVideoEndedListener(webContents)
 
       // Poll player state via executeJavaScript and forward to renderer over IPC.
       // window.parent.postMessage does NOT cross Electron's OOPIF process boundary,
       // so this is the only reliable way to get data back from the webview.
       let recsPollCounter = 0
+      let pollInFlight = false
 
       const pollTimer = setInterval(async () => {
         if (!mainWindow || mainWindow.isDestroyed()) {
@@ -373,6 +401,8 @@ function createWindow() {
         }
         const activePlaybackWc = getActivePlaybackWebContents()
         if (!activePlaybackWc || activePlaybackWc.isDestroyed()) return
+        if (pollInFlight) return
+        pollInFlight = true
         try {
           const state = await activePlaybackWc.executeJavaScript(getScript('poll-state'))
           // Periodically merge homepage recommendations from the webview when
@@ -396,29 +426,20 @@ function createWindow() {
             mainWindow.webContents.send('ytmusic-state', state)
           }
         } catch (_) { /* page navigating or destroyed */ }
+        finally { pollInFlight = false }
       }, 1000)
 
       activePollTimer = pollTimer
-      webContents.on('destroyed', () => {
-        clearInterval(pollTimer)
-        if (activePollTimer === pollTimer) activePollTimer = null
-      })
-    })
-  })
-
-  mainWindow.webContents.on('did-create-window', (childWindow) => {
-    childWindow.webContents.on('dom-ready', () => {
-      if (childWindow.webContents.getURL().includes('music.youtube.com')) {
-        const controlScript = fs.readFileSync(
-          path.join(__dirname, 'ytmusic-control.js'),
-          'utf8'
-        )
-        childWindow.webContents.executeJavaScript(controlScript)
-      }
     })
   })
 
   mainWindow.on('closed', () => {
+    if (activePollTimer) clearInterval(activePollTimer)
+    activePollTimer = null
+    resetHiddenPlayback()
+    ytWebContents = null
+    webviewWebContents = null
+    queueClearedOnStartup = false
     mainWindow = null
   })
 }
@@ -443,7 +464,7 @@ function openLoginWindow() {
     }
   })
 
-  loginWindow.loadURL(YTMUSIC_URL)
+  loginWindow.loadURL(YTMUSIC_URL).catch(() => {})
 
   if (process.env.NODE_ENV === 'development') {
     loginWindow.webContents.openDevTools({ mode: 'detach' })
@@ -457,18 +478,14 @@ function openLoginWindow() {
 function registerIpcHandlers() {
   ipcMain.handle('ytmusic-auth:get-state', async () => {
     const stored = readStoredAuth()
-    const storedReady = Boolean(stored?.headers?.authorization && stored?.headers?.cookie)
-    const fresh = isStoredAuthFresh(stored)
+    if (stored?.headers) {
+      try { persistAuthMarker({ capturedAt: stored.capturedAt || null, ready: true }) } catch (_) { removeStoredAuth() }
+    }
     const sessionReady = await hasYouTubeSessionCookies()
-    const ready = storedReady && fresh && sessionReady
+    const ready = sessionReady
 
     if (!ready && stored && !sessionReady) {
-      try {
-        const filePath = getAuthFilePath()
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath)
-        }
-      } catch (_) {}
+      removeStoredAuth()
     }
 
     return {
@@ -477,24 +494,17 @@ function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('ytmusic-auth:get-headers', () => {
-    const stored = readStoredAuth()
-    return stored?.headers || null
-  })
-
   ipcMain.handle('ytmusic-auth:open-login', () => {
     openLoginWindow()
     return { opened: true }
   })
 
   ipcMain.handle('ytmusic-auth:logout', async () => {
-    // Delete stored auth file
-    try {
-      const filePath = getAuthFilePath()
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-      }
-    } catch (_) {}
+    resetHiddenPlayback()
+    webviewWebContents = null
+    queueClearedOnStartup = false
+    authCaptureNotified = false
+    removeStoredAuth()
     // Clear session cookies/storage for the YouTube Music partition
     try {
       const ytSession = session.fromPartition(YTMUSIC_PARTITION)
@@ -512,6 +522,8 @@ function registerIpcHandlers() {
       })
       await ytSession.clearCache()
     } catch (_) {}
+    authCaptureNotified = false
+    removeStoredAuth()
     return { ok: true }
   })
 
@@ -572,13 +584,18 @@ function registerIpcHandlers() {
           await activePlaybackWc.executeJavaScript(getScript('cmd-dislike'))
           break
         case 'seek':
-          if (data && typeof data.time === 'number') {
+          if (!data || !Number.isFinite(data.time)) return { ok: false }
+          {
+            const duration = await activePlaybackWc.executeJavaScript('document.querySelector("video")?.duration')
+            data.time = Math.max(0, Math.min(data.time, Number.isFinite(duration) ? duration : data.time))
             diagLog('command:seek', { wcId: activePlaybackWc.id, time: data.time })
             await activePlaybackWc.executeJavaScript(getScript('cmd-seek', { SEEK_TIME: data.time }))
           }
           break
         case 'setVolume':
-          if (data && typeof data.volume === 'number') {
+          if (!data || !Number.isFinite(data.volume)) return { ok: false }
+          {
+            data.volume = Math.max(0, Math.min(100, data.volume))
             diagLog('command:setVolume', { wcId: activePlaybackWc.id, volume: data.volume })
             const vol01 = data.volume / 100
             lastKnownVolume = vol01
@@ -586,7 +603,8 @@ function registerIpcHandlers() {
           }
           break
         case 'playTrack':
-          if (data && data.url) {
+          if (!data || !isAllowedTrackUrl(data.url)) return { ok: false }
+          {
             diagLog('command:playTrack:start', {
               requestedUrl: data.url,
               wcId: activePlaybackWc.id,
@@ -636,20 +654,7 @@ function registerIpcHandlers() {
               // 4. Unmute and resume playback with correct volume
               ytWebContents.setAudioMuted(false)
               const swapVol = lastKnownVolume
-              // Listen for videoEnded on the promoted window
-              ytWebContents.on('console-message', async (_event, _level, message) => {
-                if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
-                  diagLog('videoEnded:consoleSignal:promotedWin', { wcId: ytWebContents && !ytWebContents.isDestroyed() ? ytWebContents.id : null })
-                  // Aggressively mute + pause to prevent YT Music auto-queue bleed
-                  try {
-                    if (ytWebContents && !ytWebContents.isDestroyed()) {
-                      ytWebContents.setAudioMuted(true)
-                      await ytWebContents.executeJavaScript(getScript('video-ended-retry'))
-                    }
-                  } catch (_) {}
-                  mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
-                }
-              })
+              attachVideoEndedListener(ytWebContents)
               await ytWebContents.executeJavaScript(getScript('cmd-swap-preload-resume', { VOLUME: swapVol }))
               // 5. Navigate the old webview back to homepage for recommendations
               if (webviewWebContents && webviewWebContents !== ytWebContents && !webviewWebContents.isDestroyed()) {
@@ -686,7 +691,8 @@ function registerIpcHandlers() {
           }
           break
         case 'preloadTrack':
-          if (data && data.url) {
+          if (!data || !isAllowedTrackUrl(data.url)) return { ok: false }
+          {
             if (preloadWin && !preloadWin.isDestroyed() && preloadUrl === data.url) {
               diagLog('command:preloadTrack:skipExisting', {
                 url: data.url,
@@ -755,10 +761,7 @@ function registerIpcHandlers() {
                     preloadReady = true
                     diagLog('command:preloadTrack:ready', { url: targetUrl, attempts })
                   }
-                } catch(e) {
-                  clearInterval(checkInterval)
-                  if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
-                }
+                } catch (_) { /* navigation can briefly interrupt probing */ }
                 finally { probeInFlight = false }
                 if (attempts > 30) {
                   clearInterval(checkInterval) // 15s timeout
@@ -771,17 +774,17 @@ function registerIpcHandlers() {
                 if (preloadProbeTimer === checkInterval) preloadProbeTimer = null
               })
             })
-            preloadWin.loadURL(data.url)
+            preloadWin.loadURL(data.url).catch(() => {})
           }
           break
         case 'refreshPage':
           diagLog('command:refreshPage')
           // Navigate the webview (not the active playback source) to refresh recommendations
-          if (webviewWebContents && !webviewWebContents.isDestroyed()) {
+          if (webviewWebContents && !webviewWebContents.isDestroyed() && webviewWebContents !== activePlaybackWc) {
             webviewWebContents.setAudioMuted(true)
             await webviewWebContents.loadURL('https://music.youtube.com')
-          } else if (ytWebContents && !ytWebContents.isDestroyed()) {
-            await ytWebContents.loadURL('https://music.youtube.com')
+          } else {
+            return { ok: false }
           }
           break
       }
@@ -792,23 +795,35 @@ function registerIpcHandlers() {
   })
 }
 
-app.whenReady().then(() => {
-  const appIconPath = resolveAppIconPath()
-  if (process.platform === 'darwin' && app.dock && appIconPath) {
-    app.dock.setIcon(appIconPath)
-  }
-
-  setupYouTubeSessionHeaderCapture()
-  registerIpcHandlers()
-  createWindow()
-  initAutoUpdater(mainWindow)
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0)
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    } else {
       createWindow()
     }
   })
-})
+  app.whenReady().then(() => {
+    const appIconPath = resolveAppIconPath()
+    if (process.platform === 'darwin' && app.dock && appIconPath) {
+      app.dock.setIcon(appIconPath)
+    }
+
+    setupYouTubeSessionHeaderCapture()
+    registerIpcHandlers()
+    createWindow()
+    initAutoUpdater(() => mainWindow)
+
+    app.on('activate', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        createWindow()
+      }
+    })
+  })
+}
 
 app.on('before-quit', () => {
   // Silence all audio immediately so nothing is heard after Cmd+Q / quit.

@@ -4,7 +4,6 @@ contextBridge.exposeInMainWorld('electron', {
   version: process.versions.electron,
   openYouTubeMusicLogin: () => ipcRenderer.invoke('ytmusic-auth:open-login'),
   getYouTubeMusicAuthState: () => ipcRenderer.invoke('ytmusic-auth:get-state'),
-  getYouTubeMusicAuthHeaders: () => ipcRenderer.invoke('ytmusic-auth:get-headers'),
   onYouTubeMusicAuthUpdated: (callback) => {
     const handler = (_, payload) => callback(payload)
     ipcRenderer.on('ytmusic-auth-updated', handler)
