@@ -84,7 +84,8 @@ function readStoredAuth() {
 
 function persistAuthHeaders(payload) {
   const filePath = getAuthFilePath()
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8')
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 })
+  try { fs.chmodSync(filePath, 0o600) } catch (_) {}
 }
 
 function isStoredAuthFresh(stored, maxAgeMs = 1000 * 60 * 60 * 12) {
@@ -281,6 +282,39 @@ function setupPlaybackScripts(wc, initialVolume) {
   wc.executeJavaScript(getScript('setup-playback', { SEED_VOLUME: seedVolume }))
 }
 
+
+// ─── Video-ended signal (attach exactly once per webContents) ─────
+const videoEndedAttached = new WeakSet()
+function attachVideoEndedListener(wc) {
+  if (!wc || wc.isDestroyed() || videoEndedAttached.has(wc)) return
+  videoEndedAttached.add(wc)
+  wc.on('console-message', async (_event, _level, message) => {
+    if (message !== '__TUNEBOX_VIDEO_ENDED__') return
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    diagLog('videoEnded:consoleSignal', { wcId: wc.id })
+    // Proactively mute + pause before YT Music's own autoplay queue can bleed through.
+    try {
+      if (!wc.isDestroyed()) {
+        wc.setAudioMuted(true)
+        await wc.executeJavaScript(getScript('video-ended-retry'))
+      }
+    } catch (_) {}
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
+    }
+  })
+}
+
+// Only allow navigating playback windows to YouTube Music over https.
+function isAllowedTrackUrl(raw) {
+  try {
+    const u = new URL(raw)
+    return u.protocol === 'https:' && u.hostname === 'music.youtube.com'
+  } catch (_) {
+    return false
+  }
+}
+
 function createWindow() {
   const appIconPath = resolveAppIconPath()
 
@@ -346,20 +380,8 @@ function createWindow() {
         webContents.executeJavaScript(getScript('clear-queue')).catch(function () {})
       }
 
-      // Fast path: detect videoEnded via console-message (near-instant, no polling delay)
-      webContents.on('console-message', async (_event, _level, message) => {
-        if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
-          diagLog('videoEnded:consoleSignal', { wcId: webContents.id })
-
-          // Proactively pause + mute before YT Music's own autoplay queue can bleed through.
-          // Keep retrying a few times in case pause() gets ignored by the player.
-          try {
-            await webContents.executeJavaScript(getScript('video-ended-retry'))
-          } catch (_) {}
-
-          mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
-        }
-      })
+      // Fast path: detect videoEnded via console-message (registered once per webContents)
+      attachVideoEndedListener(webContents)
 
       // Poll player state via executeJavaScript and forward to renderer over IPC.
       // window.parent.postMessage does NOT cross Electron's OOPIF process boundary,
@@ -586,7 +608,7 @@ function registerIpcHandlers() {
           }
           break
         case 'playTrack':
-          if (data && data.url) {
+          if (data && isAllowedTrackUrl(data.url)) {
             diagLog('command:playTrack:start', {
               requestedUrl: data.url,
               wcId: activePlaybackWc.id,
@@ -636,20 +658,7 @@ function registerIpcHandlers() {
               // 4. Unmute and resume playback with correct volume
               ytWebContents.setAudioMuted(false)
               const swapVol = lastKnownVolume
-              // Listen for videoEnded on the promoted window
-              ytWebContents.on('console-message', async (_event, _level, message) => {
-                if (message === '__TUNEBOX_VIDEO_ENDED__' && mainWindow && !mainWindow.isDestroyed()) {
-                  diagLog('videoEnded:consoleSignal:promotedWin', { wcId: ytWebContents && !ytWebContents.isDestroyed() ? ytWebContents.id : null })
-                  // Aggressively mute + pause to prevent YT Music auto-queue bleed
-                  try {
-                    if (ytWebContents && !ytWebContents.isDestroyed()) {
-                      ytWebContents.setAudioMuted(true)
-                      await ytWebContents.executeJavaScript(getScript('video-ended-retry'))
-                    }
-                  } catch (_) {}
-                  mainWindow.webContents.send('ytmusic-state', { videoEnded: true })
-                }
-              })
+              attachVideoEndedListener(ytWebContents)
               await ytWebContents.executeJavaScript(getScript('cmd-swap-preload-resume', { VOLUME: swapVol }))
               // 5. Navigate the old webview back to homepage for recommendations
               if (webviewWebContents && webviewWebContents !== ytWebContents && !webviewWebContents.isDestroyed()) {
@@ -686,7 +695,7 @@ function registerIpcHandlers() {
           }
           break
         case 'preloadTrack':
-          if (data && data.url) {
+          if (data && isAllowedTrackUrl(data.url)) {
             if (preloadWin && !preloadWin.isDestroyed() && preloadUrl === data.url) {
               diagLog('command:preloadTrack:skipExisting', {
                 url: data.url,
@@ -792,6 +801,17 @@ function registerIpcHandlers() {
   })
 }
 
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 app.whenReady().then(() => {
   const appIconPath = resolveAppIconPath()
   if (process.platform === 'darwin' && app.dock && appIconPath) {
@@ -801,7 +821,7 @@ app.whenReady().then(() => {
   setupYouTubeSessionHeaderCapture()
   registerIpcHandlers()
   createWindow()
-  initAutoUpdater(mainWindow)
+  initAutoUpdater(() => mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
