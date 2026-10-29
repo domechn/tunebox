@@ -278,7 +278,9 @@ const videoEndedAttached = new WeakSet()
 function attachVideoEndedListener(wc) {
   if (!wc || wc.isDestroyed() || videoEndedAttached.has(wc)) return
   videoEndedAttached.add(wc)
-  wc.on('console-message', async (_event, _level, message) => {
+  wc.on('console-message', async (event, _level, legacyMessage) => {
+    // Electron >=35 passes a details object on the event; older versions pass positional args.
+    const message = typeof event?.message === 'string' ? event.message : legacyMessage
     if (message !== '__TUNEBOX_VIDEO_ENDED__') return
     if (!mainWindow || mainWindow.isDestroyed()) return
     diagLog('videoEnded:consoleSignal', { wcId: wc.id })
