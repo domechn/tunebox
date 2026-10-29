@@ -2,7 +2,13 @@ const { app, BrowserWindow, session, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { getScript } = require('./scripts')
-const { initAutoUpdater } = require('./updater')
+let initAutoUpdater = () => {}
+try {
+  ;({ initAutoUpdater } = require('./updater'))
+} catch (err) {
+  // Never let a missing/broken updater stop the player from launching.
+  console.error('[TuneBox] auto updater unavailable:', err && err.message)
+}
 
 let mainWindow
 let loginWindow
