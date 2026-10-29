@@ -1,117 +1,190 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TuneBox - Vintage Desktop Music Player</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #fdfbf7;
-            color: #333;
-        }
-        h1, h2, h3, .vintage-font {
-            font-family: 'Playfair Display', serif;
-        }
-        .wood-bg {
-            background: linear-gradient(to right, #4a3018, #2c1b0d);
-            color: #f4e4d4;
-        }
-        .amber-glow {
-            color: #ffb000;
-            text-shadow: 0 0 10px rgba(255, 176, 0, 0.5);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TuneBox – a retro radio-style desktop player for YouTube Music</title>
+<meta name="description" content="TuneBox is a free, open-source desktop player for YouTube Music with a 1960s–70s radio look: wood grain, brass knobs and an amber display. macOS, Windows and Linux.">
+<meta name="theme-color" content="#2c1b0d">
+<link rel="canonical" href="https://tunebox.domc.me/">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="TuneBox – retro desktop player for YouTube Music">
+<meta property="og:description" content="Wood grain, brass knobs and an amber glow display for YouTube Music. Free and open source.">
+<meta property="og:url" content="https://tunebox.domc.me/">
+<meta property="og:image" content="https://tunebox.domc.me/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"TuneBox","applicationCategory":"MultimediaApplication","operatingSystem":"macOS, Windows, Linux","description":"A retro radio-style desktop player for YouTube Music.","url":"https://tunebox.domc.me/","downloadUrl":"https://github.com/domechn/tunebox/releases/latest","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<style>
+:root{--wood:#2c1b0d;--wood2:#4a3018;--amber:#ffb000;--cream:#f4e4d4;--paper:#fdfbf7;--ink:#2b2118;--muted:#6b5d50}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Playfair Display",Georgia,"Times New Roman",serif;line-height:1.15;margin:0}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+.wood{background:linear-gradient(135deg,var(--wood2),var(--wood));color:var(--cream)}
+.glow{color:var(--amber);text-shadow:0 0 14px rgba(255,176,0,.45)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 26px;border-radius:999px;font-weight:600;text-decoration:none;transition:.15s;border:1px solid transparent}
+.btn-primary{background:var(--amber);color:#2c1b0d;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.btn-primary:hover{background:#ffc233}
+.btn-ghost{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.18)}
+.btn:focus-visible,a:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
+nav .brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-weight:700;font-size:1.25rem;text-decoration:none}
+nav .brand img{width:32px;height:32px;border-radius:8px}
+nav a.link{text-decoration:none;opacity:.85;margin-left:22px}
+nav a.link:hover{opacity:1}
+.hero{padding:36px 0 84px}
+.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+.hero h1{font-size:clamp(2.6rem,6vw,4.4rem);margin-bottom:18px}
+.hero p.lead{font-size:1.2rem;opacity:.85;max-width:34rem;margin:0 0 30px}
+.cta{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.sub{margin-top:16px;font-size:.95rem;opacity:.8;text-wrap:balance}
+.shots{display:flex;gap:16px;justify-content:center;align-items:flex-start;min-width:0}
+.shots picture{flex:1 1 0;min-width:0;max-width:300px}
+.shots img{display:block;width:100%;height:auto;border-radius:18px;border:3px solid #1b1109;box-shadow:0 24px 50px rgba(0,0,0,.5)}
+.shots picture:nth-child(2){margin-top:40px}
+section{padding:80px 0}
+.center{text-align:center}
+h2{font-size:clamp(1.8rem,4vw,2.5rem);margin-bottom:14px}
+.lede{color:var(--muted);max-width:40rem;margin:0 auto 48px;text-wrap:balance}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.card{background:#fff;border:1px solid #e6d9c6;border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(60,40,10,.05)}
+.card .ico{width:44px;height:44px;border-radius:12px;background:#fdecc8;color:#b36b00;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.card svg{width:22px;height:22px}
+.card h3{font-size:1.15rem;margin-bottom:8px;font-family:Inter,system-ui,sans-serif;font-weight:600}
+.card p{margin:0;color:var(--muted);font-size:.97rem}
+.alt{background:#f4eee4}
+.dl{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;text-align:left}
+.dl .card.me{border-color:#e0a030;box-shadow:0 0 0 3px rgba(255,176,0,.25)}
+.dl .card.me h3::after{content:"Your system";font:600 .7rem Inter,system-ui,sans-serif;background:#ffb000;color:#2c1b0d;border-radius:999px;padding:2px 9px;margin-left:10px;vertical-align:middle}
+.dl h3{margin-bottom:12px}
+.dl a.file{display:flex;justify-content:space-between;padding:10px 14px;margin-top:8px;border-radius:10px;background:#faf5ec;text-decoration:none;font-weight:500;font-size:.95rem}
+.dl a.file:hover{background:#f5e6c8}
+.dl a.file small{color:#5a4a3a;font-weight:500;font-size:.85rem}
+.note{max-width:44rem;margin:32px auto 0;color:#4a3d31;font-size:.95rem;text-wrap:balance;background:#fff7e0;border:1px solid #ecd28a;border-radius:12px;padding:14px 18px;text-align:center}
+.faq{max-width:46rem;margin:0 auto;text-align:left}
+details{background:#fff;border:1px solid #efe6da;border-radius:12px;padding:16px 20px;margin-bottom:12px}
+summary{cursor:pointer;font-weight:600}
+details p{margin:10px 0 0;color:var(--muted)}
+footer{padding:48px 0;text-align:center}
+footer .links a{margin:0 14px;text-decoration:none;opacity:.8}
+footer .links a:hover{opacity:1}
+footer p{opacity:.75;font-size:.9rem;margin:22px 0 0}
+@media(max-width:560px){nav{flex-wrap:wrap;gap:8px}nav a.link{margin:0 14px 0 0}.cta .btn{width:100%;justify-content:center}}
+@media(max-width:860px){.hero-grid{grid-template-columns:1fr;text-align:center}.hero p.lead{margin-left:auto;margin-right:auto}.cta{justify-content:center}.grid,.dl{grid-template-columns:1fr}.shots{margin-top:12px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+</style>
 </head>
-<body class="antialiased">
-    <!-- Hero Section -->
-    <header class="wood-bg py-20 px-6 text-center relative overflow-hidden">
-        <div class="max-w-4xl mx-auto relative z-10">
-            <h1 class="text-6xl md:text-8xl font-bold mb-4 amber-glow tracking-wider">TuneBox</h1>
-            <p class="text-xl md:text-2xl mb-8 text-amber-100/80 max-w-2xl mx-auto">A vintage-styled desktop music player for YouTube Music, featuring a retro 1960s-70s aesthetic.</p>
-            <div class="flex justify-center gap-4">
-                <a href="https://github.com/domechn/tunebox/releases" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 px-8 rounded-full transition shadow-lg">Download Now</a>
-                <a href="https://github.com/domechn/tunebox" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-8 rounded-full transition backdrop-blur-sm border border-white/20">View on GitHub</a>
-            </div>
+<body>
+<header class="wood">
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="#"><img src="assets/favicon-32.png" alt="" width="32" height="32">TuneBox</a>
+      <div><a class="link" href="#features">Features</a><a class="link" href="#download">Download</a><a class="link" href="#faq">FAQ</a><a class="link" href="https://github.com/domechn/tunebox">GitHub</a></div>
+    </nav>
+    <div class="hero">
+      <div class="hero-grid">
+        <div>
+          <h1 class="glow">YouTube Music,<br>on a vintage radio.</h1>
+          <p class="lead">TuneBox is a free, open-source desktop player for YouTube Music with a 1960s–70s look: wood grain, brass knobs and an amber glow display.</p>
+          <div class="cta">
+            <a id="main-dl" class="btn btn-primary" href="https://github.com/domechn/tunebox/releases/latest">Download</a>
+            <a class="btn btn-ghost" href="https://github.com/domechn/tunebox">View on GitHub</a>
+          </div>
+          <p class="sub" id="dl-sub">macOS, Windows and Linux. Free and open source (MIT).</p>
         </div>
-    </header>
+        <div class="shots">
+          <picture><source srcset="assets/screenshots/1.webp" type="image/webp"><img src="assets/screenshots/1.png" width="372" height="632" alt="TuneBox player showing the current track on the amber display"></picture>
+          <picture><source srcset="assets/screenshots/2.webp" type="image/webp"><img src="assets/screenshots/2.png" width="372" height="632" alt="TuneBox with recommended playlists" loading="lazy"></picture>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
 
-    <!-- Screenshots Section -->
-    <section class="py-20 px-6 max-w-6xl mx-auto">
-        <div class="text-center mb-16">
-            <h2 class="text-4xl font-bold mb-4 vintage-font text-gray-900">Beautifully Retro</h2>
-            <p class="text-lg text-gray-600">Wood grain textures, brass accents, and an amber-glow display.</p>
-        </div>
-        <div class="flex flex-col md:flex-row justify-center items-center gap-12">
-            <img src="./assets/screenshots/1.png" alt="TuneBox Screenshot 1" class="rounded-2xl shadow-2xl w-full max-w-[372px] border-4 border-gray-800">
-            <img src="./assets/screenshots/2.png" alt="TuneBox Screenshot 2" class="rounded-2xl shadow-2xl w-full max-w-[372px] border-4 border-gray-800">
-        </div>
-    </section>
+<main>
+<section id="features">
+  <div class="wrap center">
+    <h2>Small radio, full YouTube Music</h2>
+    <p class="lede">Sign in with your own account and listen the way you always do – through a compact player that stays out of your way.</p>
+    <div class="grid" style="text-align:left">
+      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19a3 2 0 11-6 0 3 2 0 016 0zm12-3a3 2 0 11-6 0 3 2 0 016 0z"/></svg></div><h3>Real YouTube Music</h3><p>Plays through the official YouTube Music web player, so your recommendations and account work as expected.</p></div>
+      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="13" r="4"/><path stroke-linecap="round" d="M7 8h4"/></svg></div><h3>Vintage UI</h3><p>Wood grain, brass wheel buttons and an amber screen with scanline effects.</p></div>
+      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h16"/></svg></div><h3>Synced lyrics</h3><p>The current lyric line is shown on the display while the song plays.</p></div>
+      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 12l4-4"/></svg></div><h3>Rotary volume knob</h3><p>Drag the brass ring to turn the volume up or down.</p></div>
+      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg></div><h3>Quick track changes</h3><p>The next song is preloaded in the background, so skipping and auto-advance start fast.</p></div>
+      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div><h3>Remembers you</h3><p>Login and volume persist across restarts, and the app updates itself from GitHub Releases.</p></div>
+    </div>
+  </div>
+</section>
 
-    <!-- Features Section -->
-    <section class="bg-gray-100 py-20 px-6">
-        <div class="max-w-6xl mx-auto">
-            <h2 class="text-4xl font-bold mb-16 text-center vintage-font text-gray-900">Features</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                <div class="bg-white p-8 rounded-2xl shadow-sm">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">YouTube Music</h3>
-                    <p class="text-gray-600">Full playback control through YouTube Music's web interface seamlessly integrated.</p>
-                </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Vintage UI</h3>
-                    <p class="text-gray-600">Wood grain texture, brass knobs, and an amber screen with scanline effects.</p>
-                </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Synced Lyrics</h3>
-                    <p class="text-gray-600">Displays the current lyric line in real time as your music plays.</p>
-                </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Rotary Volume Knob</h3>
-                    <p class="text-gray-600">Drag-to-rotate volume control with haptic-style feedback for a tactile feel.</p>
-                </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Live Track Info</h3>
-                    <p class="text-gray-600">Real-time song title, artist, and album art display directly on the vintage screen.</p>
-                </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm">
-                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Session Persistence</h3>
-                    <p class="text-gray-600">Remembers your login state and volume across restarts automatically.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+<section id="download" class="alt">
+  <div class="wrap center">
+    <h2>Download TuneBox</h2>
+    <p class="lede" id="dl-version">Pick your platform. Latest release on GitHub.</p>
+    <div class="dl">
+      <div class="card" data-os="mac"><h3>macOS</h3>
+        <a class="file" data-asset="arm64.dmg" href="https://github.com/domechn/tunebox/releases/latest">Apple Silicon <small>.dmg</small></a>
+        <a class="file" data-asset="x64.dmg" href="https://github.com/domechn/tunebox/releases/latest">Intel <small>.dmg</small></a>
+      </div>
+      <div class="card" data-os="win"><h3>Windows</h3>
+        <a class="file" data-asset="Setup" href="https://github.com/domechn/tunebox/releases/latest">Installer <small>.exe</small></a>
+        <a class="file" data-asset="Portable" href="https://github.com/domechn/tunebox/releases/latest">Portable <small>.exe</small></a>
+      </div>
+      <div class="card" data-os="linux"><h3>Linux</h3>
+        <a class="file" data-asset=".AppImage" href="https://github.com/domechn/tunebox/releases/latest">Any distro <small>.AppImage</small></a>
+        <a class="file" data-asset=".deb" href="https://github.com/domechn/tunebox/releases/latest">Debian / Ubuntu <small>.deb</small></a>
+        <a class="file" data-asset=".rpm" href="https://github.com/domechn/tunebox/releases/latest">Fedora / RHEL <small>.rpm</small></a>
+      </div>
+    </div>
+    <p class="note">The macOS build is not code-signed: if Gatekeeper blocks it, right-click the app and choose <strong>Open</strong>. Auto update may not work on unsigned macOS builds – download new versions manually if it fails.</p>
+  </div>
+</section>
 
-    <!-- Footer -->
-    <footer class="wood-bg py-12 px-6 text-center">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold mb-6 amber-glow vintage-font">TuneBox</h2>
-            <p class="text-amber-100/60 mb-8">Open source and built with ❤️</p>
-            <div class="flex justify-center gap-6">
-                <a href="https://github.com/domechn/tunebox" class="text-amber-100/80 hover:text-white transition">GitHub</a>
-                <a href="https://github.com/domechn/tunebox/issues" class="text-amber-100/80 hover:text-white transition">Issues</a>
-            </div>
-            <p class="mt-12 text-sm text-amber-100/40">&copy; 2026 TuneBox. All rights reserved.</p>
-        </div>
-    </footer>
+<section id="faq">
+  <div class="wrap center">
+    <h2>FAQ</h2>
+    <p class="lede">A few things people ask.</p>
+    <div class="faq">
+      <details><summary>Do I need YouTube Music Premium?</summary><p>No. TuneBox plays what the YouTube Music web player plays for your account – with a free account you get the same ads and limits as in the browser.</p></details>
+      <details><summary>Is it safe to sign in?</summary><p>You sign in on the official YouTube Music page inside the app. Your session stays in the app's local profile on your computer, and signing out clears it. TuneBox is open source, so you can read exactly what it does.</p></details>
+      <details><summary>Is this an official Google product?</summary><p>No. TuneBox is an independent, unofficial client and is not affiliated with Google or YouTube.</p></details>
+      <details><summary>Something is broken – where do I report it?</summary><p>Open an issue on <a href="https://github.com/domechn/tunebox/issues">GitHub</a> with your OS and TuneBox version.</p></details>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="wood">
+  <div class="wrap">
+    <h2 class="glow" style="font-size:1.8rem;margin-bottom:16px">TuneBox</h2>
+    <div class="links"><a href="https://github.com/domechn/tunebox">GitHub</a><a href="https://github.com/domechn/tunebox/releases">Releases</a><a href="https://github.com/domechn/tunebox/issues">Issues</a></div>
+    <p>MIT licensed · Not affiliated with Google or YouTube · © 2026 TuneBox</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var ua = navigator.userAgent, os = /Mac/.test(ua) ? 'mac' : /Win/.test(ua) ? 'win' : /Linux|X11/.test(ua) ? 'linux' : '';
+  var names = { mac: 'macOS', win: 'Windows', linux: 'Linux' };
+  var mine = document.querySelector('[data-os="' + os + '"]');
+  if (mine) { mine.classList.add('me'); document.getElementById('main-dl').textContent = 'Download for ' + names[os]; document.getElementById('main-dl').href = '#download'; }
+  fetch('https://api.github.com/repos/domechn/tunebox/releases/latest').then(function (r) { return r.ok ? r.json() : Promise.reject(); }).then(function (rel) {
+    var files = rel.assets || [];
+    document.querySelectorAll('a.file').forEach(function (a) {
+      var key = a.getAttribute('data-asset');
+      var hit = files.find(function (f) { return f.name.indexOf(key) !== -1 && !/blockmap|\.yml$/.test(f.name); });
+      if (hit) a.href = hit.browser_download_url;
+    });
+    document.getElementById('dl-version').textContent = 'Latest version: ' + rel.tag_name + '. Pick your platform.';
+  }).catch(function () {});
+})();
+</script>
 </body>
 </html>
