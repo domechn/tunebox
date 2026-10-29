@@ -129,7 +129,10 @@
         "owner": "domechn",
         "repo": "tunebox"
       }
-    ]
+    ],
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
   },
   "dependencies": {
     "electron-updater": "^6.8.3"
