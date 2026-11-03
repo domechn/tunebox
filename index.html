@@ -2,187 +2,333 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TuneBox – a retro radio-style desktop player for YouTube Music</title>
-<meta name="description" content="TuneBox is a free, open-source desktop player for YouTube Music with a 1960s–70s radio look: wood grain, brass knobs and an amber display. macOS, Windows and Linux.">
-<meta name="theme-color" content="#2c1b0d">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TuneBox – Tune in. A retro radio-style desktop player for YouTube Music</title>
+<meta name="description" content="TuneBox is a free, open-source desktop player for YouTube Music in a walnut-and-brass radio. Click wheel, amber display, synced lyrics. macOS, Windows and Linux.">
+<meta name="theme-color" content="#150d07">
 <link rel="canonical" href="https://tunebox.domc.me/">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <meta property="og:type" content="website">
-<meta property="og:title" content="TuneBox – retro desktop player for YouTube Music">
-<meta property="og:description" content="Wood grain, brass knobs and an amber glow display for YouTube Music. Free and open source.">
+<meta property="og:title" content="TuneBox – Tune in.">
+<meta property="og:description" content="YouTube Music in a walnut-and-brass radio. Free, open source, for macOS, Windows and Linux.">
 <meta property="og:url" content="https://tunebox.domc.me/">
 <meta property="og:image" content="https://tunebox.domc.me/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"TuneBox","applicationCategory":"MultimediaApplication","operatingSystem":"macOS, Windows, Linux","description":"A retro radio-style desktop player for YouTube Music.","url":"https://tunebox.domc.me/","downloadUrl":"https://github.com/domechn/tunebox/releases/latest","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
-</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"TuneBox","applicationCategory":"MultimediaApplication","operatingSystem":"macOS, Windows, Linux","description":"A retro radio-style desktop player for YouTube Music.","url":"https://tunebox.domc.me/","downloadUrl":"https://github.com/domechn/tunebox/releases/latest","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
 <style>
-:root{--wood:#2c1b0d;--wood2:#4a3018;--amber:#ffb000;--cream:#f4e4d4;--paper:#fdfbf7;--ink:#2b2118;--muted:#6b5d50}
-*{box-sizing:border-box}
+@font-face{font-family:"Instrument Serif";src:url("assets/fonts/InstrumentSerif-Regular.ttf");font-display:swap}
+:root{
+  --walnut:#150d07; --walnut-2:#1f140b; --walnut-3:#2c1d10;
+  --amber:#ffb000; --amber-soft:rgba(255,176,0,.16); --amber-line:rgba(255,176,0,.28);
+  --cream:#f3e7d1; --paper:#eadfc8; --ink:#241709; --ink-2:#5b4630;
+  --brass:#c9a45c;
+  --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Liberation Sans",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0}
+h1,h2,h3{text-wrap:balance}p{text-wrap:pretty}
 html{scroll-behavior:smooth}
-body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
-h1,h2,h3{font-family:"Playfair Display",Georgia,"Times New Roman",serif;line-height:1.15;margin:0}
-a{color:inherit}
-.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
-.wood{background:linear-gradient(135deg,var(--wood2),var(--wood));color:var(--cream)}
-.glow{color:var(--amber);text-shadow:0 0 14px rgba(255,176,0,.45)}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 26px;border-radius:999px;font-weight:600;text-decoration:none;transition:.15s;border:1px solid transparent}
-.btn-primary{background:var(--amber);color:#2c1b0d;box-shadow:0 6px 18px rgba(0,0,0,.3)}
-.btn-primary:hover{background:#ffc233}
-.btn-ghost{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);color:#fff}
-.btn-ghost:hover{background:rgba(255,255,255,.18)}
-.btn:focus-visible,a:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
-nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
-nav .brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-weight:700;font-size:1.25rem;text-decoration:none}
-nav .brand img{width:32px;height:32px;border-radius:8px}
-nav a.link{text-decoration:none;opacity:.85;margin-left:22px}
-nav a.link:hover{opacity:1}
-.hero{padding:36px 0 84px}
-.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
-.hero h1{font-size:clamp(2.6rem,6vw,4.4rem);margin-bottom:18px}
-.hero p.lead{font-size:1.2rem;opacity:.85;max-width:34rem;margin:0 0 30px}
-.cta{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
-.sub{margin-top:16px;font-size:.95rem;opacity:.8;text-wrap:balance}
-.shots{display:flex;gap:16px;justify-content:center;align-items:flex-start;min-width:0}
-.shots picture{flex:1 1 0;min-width:0;max-width:300px}
-.shots img{display:block;width:100%;height:auto;border-radius:18px;border:3px solid #1b1109;box-shadow:0 24px 50px rgba(0,0,0,.5)}
-.shots picture:nth-child(2){margin-top:40px}
-section{padding:80px 0}
-.center{text-align:center}
-h2{font-size:clamp(1.8rem,4vw,2.5rem);margin-bottom:14px}
-.lede{color:var(--muted);max-width:40rem;margin:0 auto 48px;text-wrap:balance}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-.card{background:#fff;border:1px solid #e6d9c6;border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(60,40,10,.05)}
-.card .ico{width:44px;height:44px;border-radius:12px;background:#fdecc8;color:#b36b00;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
-.card svg{width:22px;height:22px}
-.card h3{font-size:1.15rem;margin-bottom:8px;font-family:Inter,system-ui,sans-serif;font-weight:600}
-.card p{margin:0;color:var(--muted);font-size:.97rem}
-.alt{background:#f4eee4}
-.dl{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;text-align:left}
-.dl .card.me{border-color:#e0a030;box-shadow:0 0 0 3px rgba(255,176,0,.25)}
-.dl .card.me h3::after{content:"Your system";font:600 .7rem Inter,system-ui,sans-serif;background:#ffb000;color:#2c1b0d;border-radius:999px;padding:2px 9px;margin-left:10px;vertical-align:middle}
-.dl h3{margin-bottom:12px}
-.dl a.file{display:flex;justify-content:space-between;padding:10px 14px;margin-top:8px;border-radius:10px;background:#faf5ec;text-decoration:none;font-weight:500;font-size:.95rem}
-.dl a.file:hover{background:#f5e6c8}
-.dl a.file small{color:#5a4a3a;font-weight:500;font-size:.85rem}
-.note{max-width:44rem;margin:32px auto 0;color:#4a3d31;font-size:.95rem;text-wrap:balance;background:#fff7e0;border:1px solid #ecd28a;border-radius:12px;padding:14px 18px;text-align:center}
-.faq{max-width:46rem;margin:0 auto;text-align:left}
-details{background:#fff;border:1px solid #efe6da;border-radius:12px;padding:16px 20px;margin-bottom:12px}
-summary{cursor:pointer;font-weight:600}
-details p{margin:10px 0 0;color:var(--muted)}
-footer{padding:48px 0;text-align:center}
-footer .links a{margin:0 14px;text-decoration:none;opacity:.8}
-footer .links a:hover{opacity:1}
-footer p{opacity:.75;font-size:.9rem;margin:22px 0 0}
-@media(max-width:560px){nav{flex-wrap:wrap;gap:8px}nav a.link{margin:0 14px 0 0}.cta .btn{width:100%;justify-content:center}}
-@media(max-width:860px){.hero-grid{grid-template-columns:1fr;text-align:center}.hero p.lead{margin-left:auto;margin-right:auto}.cta{justify-content:center}.grid,.dl{grid-template-columns:1fr}.shots{margin-top:12px}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+body{font-family:var(--sans);background:var(--walnut);color:var(--cream);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1240px;margin:0 auto;padding:0 40px}
+.mono{font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase}
+
+/* ───────── dial header ───────── */
+.top{position:sticky;top:0;z-index:20;background:rgba(21,13,7,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--amber-line)}
+.top .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:72px}
+.brand{display:flex;align-items:center;gap:12px;font-family:var(--serif);font-size:28px;color:var(--cream)}
+.brand img{width:30px;height:30px;border-radius:8px}
+.dial{position:relative;width:640px;height:48px}
+.dial .ticks{position:absolute;left:0;right:0;bottom:4px;height:14px;
+  background:
+   repeating-linear-gradient(90deg,var(--amber-line) 0 1px,transparent 1px 10px) bottom/100% 7px no-repeat,
+   repeating-linear-gradient(90deg,rgba(255,176,0,.5) 0 1px,transparent 1px 50px) bottom/100% 14px no-repeat}
+.dial .st{position:absolute;bottom:28px;transform:translateX(-50%);font-size:12px;color:rgba(243,231,209,.72);white-space:nowrap}
+.dial .st b{font-weight:500;color:rgba(243,231,209,.5);margin-right:7px}
+.dial .st.on{color:var(--amber)}
+.dial .st{transition:color .25s}.dial .st:hover{color:var(--cream)}
+.dial .needle{transition:left .5s cubic-bezier(.3,1.35,.5,1);position:absolute;bottom:0;width:2px;height:22px;margin-left:-1px;background:var(--amber);box-shadow:0 0 12px 2px rgba(255,176,0,.6)}
+.top .go{justify-self:end;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 20px;border-radius:999px;border:1px solid var(--amber);color:var(--amber);font-size:14px;font-weight:600}
+
+/* ───────── hero ───────── */
+.hero{position:relative;height:1240px;overflow:hidden;background:
+  radial-gradient(60% 45% at 50% 78%,rgba(255,176,0,.22),transparent 70%),
+  linear-gradient(#150d07,#1a0f08)}
+.hero .kicker{text-align:center;padding-top:40px;font-size:12px;color:var(--amber)}
+.hero h1{font-family:var(--serif);font-weight:400;text-align:center;font-size:176px;line-height:.9;letter-spacing:0;margin-top:14px;color:var(--cream)}
+.hero h1 i{font-style:normal;color:var(--amber);text-shadow:0 0 60px rgba(255,176,0,.35)}
+.hero .lead{text-align:center;font-size:20px;max-width:620px;margin:14px auto 0;color:rgba(243,231,209,.86)}
+.cta{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:22px}
+.btn{display:inline-flex;align-items:center;gap:10px;height:50px;padding:0 30px;border-radius:999px;font-weight:600;font-size:16px}
+.btn.main{background:var(--amber);color:var(--walnut);box-shadow:0 10px 30px rgba(255,176,0,.25);transition:transform .15s,box-shadow .15s}.btn.main:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(255,176,0,.35)}.btn.line{transition:background .15s}.btn.line:hover{background:rgba(243,231,209,.08)}
+.btn.line{border:1px solid rgba(243,231,209,.35);color:var(--cream)}
+.hero .meta{text-align:center;margin-top:14px;font-size:12px;color:rgba(243,231,209,.62)}
+.stage{position:absolute;left:0;right:0;top:436px;height:804px;
+  -webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+.stage .dev{position:absolute;left:50%;top:0;width:440px;transform:translateX(-50%);filter:drop-shadow(0 40px 60px rgba(0,0,0,.7))}
+.note{position:absolute;width:260px;font-size:12px;color:rgba(243,231,209,.9);line-height:1.55}
+.note::before{content:"";position:absolute;top:8px;height:1px;background:var(--amber)}
+.note::after{content:"";position:absolute;top:5px;width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber)}
+.note b{display:block;color:var(--amber);font-weight:500;margin-bottom:4px}
+.note.l{right:calc(50% + 352px);text-align:right}.note.l::before{left:calc(100% + 12px);width:120px}.note.l::after{left:calc(100% + 125px)}
+.note.r{left:calc(50% + 352px)}.note.r::before{right:calc(100% + 12px);width:120px}.note.r::after{right:calc(100% + 125px)}
+
+/* ───────── 01 listen (paper) ───────── */
+.paper{background:var(--paper);color:var(--ink)}
+.sec{padding:120px 0}
+.label{font-size:12px;color:var(--ink-2);display:flex;gap:14px;align-items:center;margin-bottom:28px}
+.label::after{content:"";height:1px;background:currentColor;opacity:.3;flex:1;max-width:220px}
+.listen .grid,.faq .grid{display:grid;grid-template-columns:5fr 7fr;gap:80px;align-items:start}
+.listen figure{margin-top:48px;display:flex;gap:26px;align-items:flex-end}
+.listen .grid>div:first-child{position:sticky;top:110px}
+.listen figure img{width:230px;height:auto;filter:drop-shadow(0 18px 24px rgba(36,23,9,.35))}
+.listen figcaption{font-size:13px;color:var(--ink-2);max-width:14rem;line-height:1.5}
+.listen figcaption b{display:block;color:var(--ink);font-weight:600;margin-bottom:4px}
+.listen h2{font-family:var(--serif);font-weight:400;font-size:84px;line-height:.98;letter-spacing:-.01em}
+.listen p.big{font-size:19px;color:var(--ink-2);margin-top:28px;max-width:30rem}
+.plate{border-top:3px solid var(--ink)}
+.plate .row{display:grid;grid-template-columns:56px 1fr;gap:12px;padding:22px 0;border-bottom:1px solid rgba(36,23,9,.22);align-items:baseline}
+.plate .n{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+.plate h3{font-family:var(--serif);font-weight:400;font-size:34px;line-height:1.1}
+.plate p{font-size:16px;color:var(--ink-2);margin-top:4px}
+
+/* ───────── 02 download (walnut) ───────── */
+.dl{background:var(--walnut-2)}
+.dl .label{color:var(--amber)}
+.dl h2{font-family:var(--serif);font-weight:400;font-size:120px;line-height:.9;letter-spacing:-.02em}
+.dl h2 i{font-style:normal;color:var(--amber)}
+.dl .sub{margin-top:30px;font-size:13px;color:rgba(243,231,209,.7)}
+.bands{margin-top:64px;border-top:1px solid var(--amber-line)}
+.band{display:grid;grid-template-columns:340px 1fr;gap:32px;align-items:center;padding:34px 32px;border-bottom:1px solid var(--amber-line)}
+.band h3{font-family:var(--serif);font-weight:400;font-size:64px;line-height:1;display:flex;align-items:center;gap:16px}
+.band .files{display:flex;flex-wrap:wrap;gap:12px;justify-content:flex-end}
+.file{display:inline-flex;align-items:baseline;gap:10px;height:52px;padding:0 24px;align-items:center;border-radius:999px;border:1px solid rgba(243,231,209,.3);font-weight:600;font-size:16px}
+.file small{font-family:var(--mono);font-weight:400;font-size:13px;opacity:.75}
+.band.me h3::after{content:"Your system";font:500 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid currentColor;border-radius:999px;padding:3px 10px;margin-left:4px}
+.band .gk{display:none}.band[data-os="mac"] .gk{display:block}
+.band.me{background:var(--amber);color:var(--walnut);border-bottom-color:transparent;padding:38px 32px 30px;margin-top:-1px}
+.band .gk{grid-column:1/-1;font-size:14px;line-height:1.55;border-top:1px solid rgba(21,13,7,.3);padding-top:16px;margin-top:4px}
+.band .gk b{font-family:var(--mono);font-weight:600;letter-spacing:.08em;margin-right:10px}
+.band.me .file{border-color:rgba(21,13,7,.55)}
+.band.me .file:first-child{background:var(--walnut);color:var(--amber);border-color:var(--walnut)}
+.file{transition:background .15s,color .15s}.file:hover{background:rgba(255,176,0,.14)}.band.me .file:hover{background:rgba(21,13,7,.12)}.band.me .file:first-child:hover{background:#2c1d10}
+.badge{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;border:1px solid currentColor;border-radius:999px;padding:3px 10px;font-weight:500}
+.caution{margin-top:36px;max-width:46rem;font-size:14px;color:rgba(243,231,209,.7);display:grid;grid-template-columns:auto 1fr;gap:14px}
+.caution b{font-family:var(--mono);font-weight:500;color:var(--amber);letter-spacing:.08em}
+
+/* ───────── 03 faq (paper) ───────── */
+.faq h2{font-family:var(--serif);font-weight:400;font-size:84px;line-height:.98;text-wrap:balance}
+.q{border-top:1px solid rgba(36,23,9,.28);padding:0}
+.q summary{list-style:none;cursor:pointer;padding:26px 0;display:flex;justify-content:space-between;gap:20px;align-items:flex-start}
+.q summary::-webkit-details-marker{display:none}
+.q summary:focus-visible{outline:3px solid #b87d00;outline-offset:2px}
+.q summary span{font-family:var(--mono);font-size:22px;line-height:1.3;color:var(--ink-2);flex:none;width:24px;text-align:right}
+.q summary span::before{content:"+"}.q[open] summary span::before{content:"\2212"}
+.q:last-child{border-bottom:1px solid rgba(36,23,9,.28)}
+.q h3{font-family:var(--serif);font-weight:400;font-size:32px;line-height:1.15}
+.q p{margin:-8px 0 28px;color:var(--ink-2);font-size:17px;max-width:38rem}
+
+/* ───────── footer ───────── */
+footer{position:relative;background:var(--walnut);overflow:hidden;padding-top:72px}
+footer .links{display:flex;gap:28px;font-size:15px;color:rgba(243,231,209,.8)}
+footer .row{display:flex;justify-content:space-between;align-items:flex-end}
+footer .legal{font-size:12px;color:rgba(243,231,209,.65)}
+footer .scale{height:20px;margin-top:44px;
+  background:
+   repeating-linear-gradient(90deg,var(--amber-line) 0 1px,transparent 1px 12px) bottom/100% 9px no-repeat,
+   repeating-linear-gradient(90deg,rgba(255,176,0,.55) 0 1px,transparent 1px 60px) bottom/100% 20px no-repeat}
+footer .word{font-family:var(--serif);font-size:25.6vw;line-height:.8;letter-spacing:0;color:var(--walnut-3);text-align:center;margin-top:36px;height:20vw;overflow:hidden;white-space:nowrap}
+
+/* ───────── mobile ───────── */
+@media(max-width:860px){
+  .wrap{padding:0 22px}
+  .top .wrap{grid-template-columns:1fr auto;height:60px}
+  .dial{display:none}
+  .hero{height:auto;padding-bottom:0}
+  .hero h1{font-size:36vw;margin-top:10px}
+  .hero .lead{font-size:18px;padding:0 22px}
+  .cta{flex-direction:column;padding:0 22px}.btn{width:100%;justify-content:center}
+  .stage{position:relative;top:auto;height:600px;margin-top:36px}
+  .stage .dev{width:min(78vw,380px)}
+  .note{display:none}
+  .sec{padding:72px 0}
+  .listen .grid,.faq .grid{grid-template-columns:1fr;gap:44px}
+  .listen h2,.faq h2{font-size:52px}
+  .listen .grid>div:first-child{position:static}
+  .listen figure img{width:150px}
+  .top .go{height:44px}
+  .file{width:100%;justify-content:space-between}
+  .band .files{width:100%}
+  .dl h2{font-size:72px}
+  .band{grid-template-columns:1fr;gap:18px;padding:26px 0}
+  .band h3{font-size:48px}.band .files{justify-content:flex-start}
+  .band.me{margin:0 -22px;padding:26px 22px}
+  footer .word{font-size:25.6vw;height:20vw}
+  footer .row{flex-direction:column;align-items:flex-start;gap:20px}
+}
+a:focus-visible,.btn:focus-visible,.file:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+.paper a:focus-visible{outline-color:#b87d00}
+.rv{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.rv.in{opacity:1;transform:none}
+.no-js .rv{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rv{opacity:1;transform:none;transition:none}.dial .needle{transition:none}.btn.main:hover{transform:none}}
 </style>
 </head>
-<body>
-<header class="wood">
+<body class="no-js" id="top">
+
+<header class="top">
   <div class="wrap">
-    <nav>
-      <a class="brand" href="#"><img src="assets/favicon-32.png" alt="" width="32" height="32">TuneBox</a>
-      <div><a class="link" href="#features">Features</a><a class="link" href="#download">Download</a><a class="link" href="#faq">FAQ</a><a class="link" href="https://github.com/domechn/tunebox">GitHub</a></div>
+    <a class="brand" href="#top"><img src="assets/favicon-32.png" alt="">TuneBox</a>
+    <nav class="dial" aria-label="Sections">
+      <a class="st on mono" data-st="listen" href="#listen" style="left:12%"><b>01</b>Listen</a>
+      <a class="st mono" data-st="download" href="#download" style="left:40%"><b>02</b>Download</a>
+      <a class="st mono" data-st="faq" href="#faq" style="left:66%"><b>03</b>FAQ</a>
+      <a class="st mono" href="https://github.com/domechn/tunebox" style="left:90%"><b>↗</b>GitHub</a>
+      <div class="ticks"></div>
+      <div class="needle" id="needle" style="left:12%"></div>
     </nav>
-    <div class="hero">
-      <div class="hero-grid">
-        <div>
-          <h1 class="glow">YouTube Music,<br>on a vintage radio.</h1>
-          <p class="lead">TuneBox is a free, open-source desktop player for YouTube Music with a 1960s–70s look: wood grain, brass knobs and an amber glow display.</p>
-          <div class="cta">
-            <a id="main-dl" class="btn btn-primary" href="https://github.com/domechn/tunebox/releases/latest">Download</a>
-            <a class="btn btn-ghost" href="https://github.com/domechn/tunebox">View on GitHub</a>
-          </div>
-          <p class="sub" id="dl-sub">macOS, Windows and Linux. Free and open source (MIT).</p>
-        </div>
-        <div class="shots">
-          <picture><source srcset="assets/screenshots/1.webp" type="image/webp"><img src="assets/screenshots/1.png" width="372" height="632" alt="TuneBox player showing the current track on the amber display"></picture>
-          <picture><source srcset="assets/screenshots/2.webp" type="image/webp"><img src="assets/screenshots/2.png" width="372" height="632" alt="TuneBox with recommended playlists" loading="lazy"></picture>
-        </div>
-      </div>
-    </div>
+    <a class="go" href="#download">Download</a>
   </div>
 </header>
 
-<main>
-<section id="features">
-  <div class="wrap center">
-    <h2>Small radio, full YouTube Music</h2>
-    <p class="lede">Sign in with your own account and listen the way you always do – through a compact player that stays out of your way.</p>
-    <div class="grid" style="text-align:left">
-      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19a3 2 0 11-6 0 3 2 0 016 0zm12-3a3 2 0 11-6 0 3 2 0 016 0z"/></svg></div><h3>Real YouTube Music</h3><p>Plays through the official YouTube Music web player, so your recommendations and account work as expected.</p></div>
-      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="13" r="4"/><path stroke-linecap="round" d="M7 8h4"/></svg></div><h3>Vintage UI</h3><p>Wood grain, brass wheel buttons and an amber screen with scanline effects.</p></div>
-      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h16"/></svg></div><h3>Synced lyrics</h3><p>The current lyric line is shown on the display while the song plays.</p></div>
-      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 12l4-4"/></svg></div><h3>Rotary volume knob</h3><p>Drag the brass ring to turn the volume up or down.</p></div>
-      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg></div><h3>Quick track changes</h3><p>The next song is preloaded in the background, so skipping and auto-advance start fast.</p></div>
-      <div class="card"><div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div><h3>Remembers you</h3><p>Login and volume persist across restarts, and the app updates itself from GitHub Releases.</p></div>
-    </div>
+<section class="hero">
+  <p class="kicker mono">FM 88.0 — 108.0 · A retro player for YouTube Music</p>
+  <h1>Tune <i>in.</i></h1>
+  <p class="lead">YouTube Music in a walnut-and-brass radio. Free, open&nbsp;source, for macOS, Windows and Linux.</p>
+  <div class="cta">
+    <a class="btn main" id="main-dl" href="#download">Download</a>
+    <a class="btn line" href="https://github.com/domechn/tunebox">View on GitHub ↗</a>
+  </div>
+  <p class="meta mono"><span id="ver">Free</span> · MIT · Not affiliated with Google</p>
+  <div class="stage">
+    <img class="dev" src="assets/dev2.webp" width="486" height="1006" alt="TuneBox playing a song: cover art, title, progress bar and a gold click wheel on a walnut body">
+    <p class="note l mono" style="top:130px"><b>Amber display</b>Cover, title, artist, progress, and the lyric line when a song has one</p>
+    <p class="note r mono" style="top:270px"><b>Your YouTube Music</b>Your account, your playlists, your recommendations</p>
+    <p class="note r mono" style="top:620px"><b>Click wheel</b>Play, pause, skip or dislike. Drag the ring for volume</p>
   </div>
 </section>
 
-<section id="download" class="alt">
-  <div class="wrap center">
-    <h2>Download TuneBox</h2>
-    <p class="lede" id="dl-version">Pick your platform. Latest release on GitHub.</p>
-    <div class="dl">
-      <div class="card" data-os="mac"><h3>macOS</h3>
-        <a class="file" data-asset="arm64.dmg" href="https://github.com/domechn/tunebox/releases/latest">Apple Silicon <small>.dmg</small></a>
-        <a class="file" data-asset="x64.dmg" href="https://github.com/domechn/tunebox/releases/latest">Intel <small>.dmg</small></a>
-      </div>
-      <div class="card" data-os="win"><h3>Windows</h3>
-        <a class="file" data-asset="Setup" href="https://github.com/domechn/tunebox/releases/latest">Installer <small>.exe</small></a>
-        <a class="file" data-asset="Portable" href="https://github.com/domechn/tunebox/releases/latest">Portable <small>.exe</small></a>
-      </div>
-      <div class="card" data-os="linux"><h3>Linux</h3>
-        <a class="file" data-asset=".AppImage" href="https://github.com/domechn/tunebox/releases/latest">Any distro <small>.AppImage</small></a>
-        <a class="file" data-asset=".deb" href="https://github.com/domechn/tunebox/releases/latest">Debian / Ubuntu <small>.deb</small></a>
-        <a class="file" data-asset=".rpm" href="https://github.com/domechn/tunebox/releases/latest">Fedora / RHEL <small>.rpm</small></a>
-      </div>
-    </div>
-    <p class="note">The macOS build is not code-signed: if Gatekeeper blocks it, right-click the app and choose <strong>Open</strong>. Auto update may not work on unsigned macOS builds – download new versions manually if it fails.</p>
-  </div>
-</section>
-
-<section id="faq">
-  <div class="wrap center">
-    <h2>FAQ</h2>
-    <p class="lede">A few things people ask.</p>
-    <div class="faq">
-      <details><summary>Do I need YouTube Music Premium?</summary><p>No. TuneBox plays what the YouTube Music web player plays for your account – with a free account you get the same ads and limits as in the browser.</p></details>
-      <details><summary>Is it safe to sign in?</summary><p>You sign in on the official YouTube Music page inside the app. Your session stays in the app's local profile on your computer, and signing out clears it. TuneBox is open source, so you can read exactly what it does.</p></details>
-      <details><summary>Is this an official Google product?</summary><p>No. TuneBox is an independent, unofficial client and is not affiliated with Google or YouTube.</p></details>
-      <details><summary>Something is broken – where do I report it?</summary><p>Open an issue on <a href="https://github.com/domechn/tunebox/issues">GitHub</a> with your OS and TuneBox version.</p></details>
-    </div>
-  </div>
-</section>
-</main>
-
-<footer class="wood">
+<section class="paper sec listen" id="listen">
   <div class="wrap">
-    <h2 class="glow" style="font-size:1.8rem;margin-bottom:16px">TuneBox</h2>
-    <div class="links"><a href="https://github.com/domechn/tunebox">GitHub</a><a href="https://github.com/domechn/tunebox/releases">Releases</a><a href="https://github.com/domechn/tunebox/issues">Issues</a></div>
-    <p>MIT licensed · Not affiliated with Google or YouTube · © 2026 TuneBox</p>
+    <p class="label mono">01 · Listen</p>
+    <div class="grid">
+      <div>
+        <h2 class="rv">The real YouTube Music, in a smaller case.</h2>
+        <p class="big">Sign in with your own account. Your playlists, likes and recommendations are the ones you already have. TuneBox only changes what you press.</p>
+        <figure><img src="assets/dev1.webp" width="486" height="1006" alt="TuneBox first-launch sign-in screen"><figcaption><b>First launch</b>You sign in on the official YouTube Music page inside the app.</figcaption></figure>
+      </div>
+      <div class="plate rv">
+        <div class="row"><span class="n">01</span><div><h3>Click wheel</h3><p>Play, pause, skip, or dislike and skip, all from one brass wheel.</p></div></div>
+        <div class="row"><span class="n">02</span><div><h3>Volume ring</h3><p>Drag the outer ring to turn the sound up or down.</p></div></div>
+        <div class="row"><span class="n">03</span><div><h3>Amber display</h3><p>Cover art, title, artist, progress, and the lyric line that is playing right now.</p></div></div>
+        <div class="row"><span class="n">04</span><div><h3>Next song, ready</h3><p>The following track is loaded in the background, so changes start fast.</p></div></div>
+        <div class="row"><span class="n">05</span><div><h3>Remembers you</h3><p>Login and volume are still there after a restart.</p></div></div>
+        <div class="row"><span class="n">06</span><div><h3>Update alerts</h3><p>The app tells you when a new version is on GitHub Releases.</p></div></div>
+      </div>
+    </div>
   </div>
+</section>
+
+<section class="dl sec" id="download">
+  <div class="wrap">
+    <p class="label mono">02 · Download</p>
+    <h2>Pick your <i>band.</i></h2>
+    <p class="sub mono" id="latest">Free · MIT licensed</p>
+    <div class="bands rv">
+      <div class="band" data-os="mac">
+        <h3>macOS</h3>
+        <div class="files"><a class="file" data-asset="arm64.dmg" href="https://github.com/domechn/tunebox/releases/latest">Apple Silicon <small>.dmg</small></a><a class="file" data-asset="x64.dmg" href="https://github.com/domechn/tunebox/releases/latest">Intel <small>.dmg</small></a></div>
+        <p class="gk"><b>NOTE</b>Not code-signed yet. If Gatekeeper blocks it, right-click the app and choose Open. In-app update may fail on macOS; if it does, download the new version here.</p>
+      </div>
+      <div class="band" data-os="win">
+        <h3>Windows</h3>
+        <div class="files"><a class="file" data-asset="Setup" href="https://github.com/domechn/tunebox/releases/latest">Installer <small>.exe</small></a><a class="file" data-asset="Portable" href="https://github.com/domechn/tunebox/releases/latest">Portable <small>.exe</small></a></div>
+      </div>
+      <div class="band" data-os="linux">
+        <h3>Linux</h3>
+        <div class="files"><a class="file" data-asset=".AppImage" href="https://github.com/domechn/tunebox/releases/latest">Any distro <small>.AppImage</small></a><a class="file" data-asset=".deb" href="https://github.com/domechn/tunebox/releases/latest">Debian / Ubuntu <small>.deb</small></a><a class="file" data-asset=".rpm" href="https://github.com/domechn/tunebox/releases/latest">Fedora <small>.rpm</small></a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="paper sec faq" id="faq">
+  <div class="wrap">
+    <p class="label mono">03 · FAQ</p>
+    <div class="grid">
+      <h2>Before you tune in.</h2>
+      <div class="qs rv">
+        <details class="q" open><summary><h3>Is it safe to sign in?</h3><span></span></summary><p>You sign in on the official YouTube Music page inside the app. Your session stays in the app's local profile on your computer, and signing out clears it. The code is open source, so you can read exactly what it does.</p></details>
+        <details class="q"><summary><h3>Do I need YouTube Music Premium?</h3><span></span></summary><p>No. TuneBox plays what the YouTube Music web player plays for your account, so a free account gets the same ads and limits as in the browser.</p></details>
+        <details class="q"><summary><h3>Is this an official Google product?</h3><span></span></summary><p>No. TuneBox is an independent, unofficial client and is not affiliated with Google or YouTube.</p></details>
+        <details class="q"><summary><h3>Something is broken. Where do I report it?</h3><span></span></summary><p>Open an issue on <a href="https://github.com/domechn/tunebox/issues" style="text-decoration:underline">GitHub</a> with your OS and TuneBox version.</p></details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <p class="legal mono">MIT licensed · Not affiliated with Google or YouTube · © 2026</p>
+      <div class="links"><a href="https://github.com/domechn/tunebox">GitHub ↗</a><a href="https://github.com/domechn/tunebox/releases">Releases ↗</a><a href="https://github.com/domechn/tunebox/issues">Issues ↗</a></div>
+    </div>
+    <div class="scale"></div>
+  </div>
+  <div class="word" aria-hidden="true">TuneBox</div>
 </footer>
 
 <script>
 (function () {
-  var ua = navigator.userAgent, os = /Mac/.test(ua) ? 'mac' : /Win/.test(ua) ? 'win' : /Linux|X11/.test(ua) ? 'linux' : '';
+  document.body.classList.remove('no-js');
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* reveal on scroll */
+  var rv = document.querySelectorAll('.rv');
+  if ('IntersectionObserver' in window && !reduce) {
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .12 });
+    rv.forEach(function (el) { io.observe(el); });
+  } else { rv.forEach(function (el) { el.classList.add('in'); }); }
+  setTimeout(function () { rv.forEach(function (el) { el.classList.add('in'); }); }, 6000); /* safety net: never leave content hidden */
+
+  /* dial needle follows the section in view */
+  var pos = { listen: 12, download: 40, faq: 66 }, labels = document.querySelectorAll('.dial .st[data-st]'), needle = document.getElementById('needle');
+  function tune() {
+    var y = window.scrollY + window.innerHeight * 0.4, cur = 'listen';
+    ['listen', 'download', 'faq'].forEach(function (id) { var el = document.getElementById(id); if (el && el.offsetTop <= y) cur = id; });
+    needle.style.left = pos[cur] + '%';
+    labels.forEach(function (l) { l.classList.toggle('on', l.getAttribute('data-st') === cur); });
+  }
+  addEventListener('scroll', tune, { passive: true }); tune();
+
+  /* device drifts up slightly while the hero scrolls away */
+  var dev = document.querySelector('.stage .dev');
+  if (dev && !reduce) addEventListener('scroll', function () { var y = Math.min(scrollY, 900); dev.style.transform = 'translateX(-50%) translateY(' + (-y * 0.06) + 'px)'; }, { passive: true });
+
+  /* detect OS */
+  var ua = navigator.userAgent, os = /Android|iPhone|iPad/.test(ua) ? '' : /Mac/.test(ua) ? 'mac' : /Win/.test(ua) ? 'win' : /Linux|X11/.test(ua) ? 'linux' : '';
   var names = { mac: 'macOS', win: 'Windows', linux: 'Linux' };
-  var mine = document.querySelector('[data-os="' + os + '"]');
-  if (mine) { mine.classList.add('me'); document.getElementById('main-dl').textContent = 'Download for ' + names[os]; document.getElementById('main-dl').href = '#download'; }
+  var mine = os && document.querySelector('.band[data-os="' + os + '"]');
+  if (mine) {
+    mine.classList.add('me');
+    var bands = mine.parentNode; bands.insertBefore(mine, bands.firstChild);
+    var main = document.getElementById('main-dl'); main.textContent = 'Download for ' + names[os];
+  } else { document.getElementById('main-dl').textContent = 'Download'; }
+
+  /* real asset links + version from the latest release */
   fetch('https://api.github.com/repos/domechn/tunebox/releases/latest').then(function (r) { return r.ok ? r.json() : Promise.reject(); }).then(function (rel) {
     var files = rel.assets || [];
-    document.querySelectorAll('a.file').forEach(function (a) {
+    document.querySelectorAll('a.file[data-asset]').forEach(function (a) {
       var key = a.getAttribute('data-asset');
       var hit = files.find(function (f) { return f.name.indexOf(key) !== -1 && !/blockmap|\.yml$/.test(f.name); });
       if (hit) a.href = hit.browser_download_url;
     });
-    document.getElementById('dl-version').textContent = 'Latest version: ' + rel.tag_name + '. Pick your platform.';
+    document.getElementById('ver').textContent = rel.tag_name;
+    var sub = document.getElementById('latest'); if (sub) sub.textContent = 'Latest: ' + rel.tag_name + ' · free · MIT licensed';
+    if (mine) { var f = mine.querySelector('a.file'); if (f) document.getElementById('main-dl').href = f.href; }
   }).catch(function () {});
 })();
 </script>
