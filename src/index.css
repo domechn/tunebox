@@ -116,7 +116,6 @@
   /* Brass outer ring with 3D bevel */
   border: 8px solid transparent;
   border-radius: 32px;
-  -webkit-app-region: drag;
   box-sizing: border-box;
   background-clip: padding-box;
   box-shadow:
@@ -186,7 +185,6 @@
 
 .player-shell > * {
   z-index: 1;
-  -webkit-app-region: no-drag;
 }
 
 /* ===== Top Bar ===== */
